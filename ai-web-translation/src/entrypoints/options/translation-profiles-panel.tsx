@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { requestConnectionTest } from '@/modules/messaging/connection-test';
 import { maskApiKey } from '@/modules/translation-profile/profile';
 import { toDraft, toFormValues, type ProfileFormValues } from '@/modules/translation-profile/profile-form';
 import {
@@ -8,10 +9,12 @@ import {
   type TranslationProfileState,
 } from '@/modules/translation-profile/profile-store';
 import type { ProfileValidationIssue } from '@/modules/translation-profile/profile-validation';
-import { ProfileEditor } from './profile-editor';
+import type { TranslationPromptRepository } from '@/modules/translation-prompt/prompt-store';
+import { ProfileEditor, type ConnectionTestState } from './profile-editor';
 
 export interface TranslationProfilesPanelProps {
   repository: TranslationProfileRepository;
+  promptRepository: TranslationPromptRepository;
 }
 
 interface EditingState {
@@ -19,7 +22,7 @@ interface EditingState {
   profileId: string | null;
 }
 
-export function TranslationProfilesPanel({ repository }: TranslationProfilesPanelProps) {
+export function TranslationProfilesPanel({ repository, promptRepository }: TranslationProfilesPanelProps) {
   const [state, setState] = useState<TranslationProfileState>(EMPTY_PROFILE_STATE);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditingState | null>(null);
@@ -29,6 +32,20 @@ export function TranslationProfilesPanel({ repository }: TranslationProfilesPane
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState('');
+  const [testState, setTestState] = useState<ConnectionTestState>({ status: 'idle' });
+
+  useEffect(() => {
+    let active = true;
+    void promptRepository.read().then((current) => {
+      if (active) setPrompt(current);
+    });
+    const unsubscribe = promptRepository.watch((current) => setPrompt(current));
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [promptRepository]);
 
   useEffect(() => {
     let active = true;
@@ -50,6 +67,7 @@ export function TranslationProfilesPanel({ repository }: TranslationProfilesPane
     setIssues([]);
     setSaveError(null);
     setStatus(null);
+    setTestState({ status: 'idle' });
   };
 
   const beginEdit = (profileId: string): void => {
@@ -60,12 +78,34 @@ export function TranslationProfilesPanel({ repository }: TranslationProfilesPane
     setIssues([]);
     setSaveError(null);
     setStatus(null);
+    setTestState({ status: 'idle' });
   };
 
   const closeEditor = (): void => {
     setEditing(null);
     setIssues([]);
     setSaveError(null);
+    setTestState({ status: 'idle' });
+  };
+
+  const testConnection = async (): Promise<void> => {
+    const result = toDraft(values);
+    if (!result.ok) {
+      setIssues(result.issues);
+      setSaveError(null);
+      setTestState({ status: 'idle' });
+      return;
+    }
+
+    setIssues([]);
+    setSaveError(null);
+    setTestState({ status: 'running' });
+    const response = await requestConnectionTest(result.draft, prompt);
+    setTestState(
+      response.ok
+        ? { status: 'success', translation: response.translation }
+        : { status: 'error', message: response.error.message },
+    );
   };
 
   const save = async (): Promise<void> => {
@@ -191,9 +231,11 @@ export function TranslationProfilesPanel({ repository }: TranslationProfilesPane
             issues={issues}
             saveError={saveError}
             busy={busy}
+            testState={testState}
             onChange={setValues}
             onSave={() => void save()}
             onCancel={closeEditor}
+            onTest={() => void testConnection()}
           />
         </section>
       )}

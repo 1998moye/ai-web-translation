@@ -399,6 +399,24 @@ body {
   border: 0;
 }
 
+.aiwt-test-result {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 14px;
+}
+
+.aiwt-test-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 14px;
+}
+
 @media (prefers-color-scheme: dark) {
   body {
     background: #0b1120;
@@ -486,5 +504,15 @@ body {
   .aiwt-status {
     background: rgba(22, 101, 52, 0.35);
     color: #bbf7d0;
+  }
+
+  .aiwt-test-result {
+    background: rgba(6, 95, 70, 0.35);
+    color: #a7f3d0;
+  }
+
+  .aiwt-test-error {
+    background: rgba(127, 29, 29, 0.35);
+    color: #fecaca;
   }
 }

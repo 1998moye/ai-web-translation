@@ -20,10 +20,19 @@ export interface ProfileEditorProps {
   issues: readonly ProfileValidationIssue[];
   saveError: string | null;
   busy: boolean;
+  testState: ConnectionTestState;
   onChange(values: ProfileFormValues): void;
   onSave(): void;
   onCancel(): void;
+  onTest(): void;
 }
+
+/** 测试连接的公开状态：请求中与请求完成可区分，失败只带脱敏消息。 */
+export type ConnectionTestState =
+  | { status: 'idle' }
+  | { status: 'running' }
+  | { status: 'success'; translation: string }
+  | { status: 'error'; message: string };
 
 export function ProfileEditor({
   heading,
@@ -31,9 +40,11 @@ export function ProfileEditor({
   issues,
   saveError,
   busy,
+  testState,
   onChange,
   onSave,
   onCancel,
+  onTest,
 }: ProfileEditorProps) {
   const [revealKey, setRevealKey] = useState(false);
 
@@ -213,7 +224,25 @@ export function ProfileEditor({
         <button type="button" onClick={onCancel} disabled={busy}>
           取消
         </button>
+        <button type="button" onClick={onTest} disabled={busy || testState.status === 'running'}>
+          {testState.status === 'running' ? '测试中…' : '测试连接'}
+        </button>
       </div>
+
+      <p className="aiwt-field-hint">
+        测试连接用固定英文短句，基于上方当前配置与已保存的提示词发起一次真实请求，不读取译文缓存。
+      </p>
+
+      {testState.status === 'success' && (
+        <p className="aiwt-test-result" role="status">
+          测试成功，返回译文：{testState.translation}
+        </p>
+      )}
+      {testState.status === 'error' && (
+        <p className="aiwt-test-error" role="alert">
+          测试失败：{testState.message}
+        </p>
+      )}
     </form>
   );
 }

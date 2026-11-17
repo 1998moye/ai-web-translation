@@ -22,7 +22,7 @@ test('可以新建、编辑默认、删除翻译服务配置，重新加载后�
   await page.getByLabel('请求地址').fill('https://api.example.com/v1/chat/completions');
   await page.getByLabel('模型名').fill('gpt-4o-mini');
   await page.getByLabel('API Key', { exact: true }).fill(API_KEY);
-  await page.getByRole('button', { name: '保存' }).click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
 
   const items = page.locator('.aiwt-profile-item');
   await expect(items).toHaveCount(1);
@@ -43,7 +43,7 @@ test('可以新建、编辑默认、删除翻译服务配置，重新加载后�
   await page.getByLabel('配置名称').fill('备用服务');
   await page.getByLabel('请求地址').fill('http://127.0.0.1:11434/v1/chat/completions');
   await page.getByLabel('模型名').fill('qwen-plus');
-  await page.getByRole('button', { name: '保存' }).click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
 
   await expect(items).toHaveCount(2);
   const second = items.filter({ hasText: '备用服务' });
@@ -69,7 +69,7 @@ test('保存前校验必填项、地址协议与额外参数，并保留高级�
   await page.goto(`chrome-extension://${extensionId}/options.html`);
   await page.getByRole('button', { name: '新建配置' }).click();
 
-  await page.getByRole('button', { name: '保存' }).click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
   const issues = page.locator('.aiwt-issues');
   await expect(issues).toContainText('配置名称');
   await expect(issues).toContainText('请求地址');
@@ -78,7 +78,7 @@ test('保存前校验必填项、地址协议与额外参数，并保留高级�
   await page.getByLabel('配置名称').fill('本地服务');
   await page.getByLabel('模型名').fill('qwen-plus');
   await page.getByLabel('请求地址').fill('http://api.example.com/v1/chat/completions');
-  await page.getByRole('button', { name: '保存' }).click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.locator('.aiwt-issues')).toContainText('HTTPS');
 
   await page.getByLabel('请求地址').fill('http://127.0.0.1:11434/v1/chat/completions');
@@ -89,7 +89,7 @@ test('保存前校验必填项、地址协议与额外参数，并保留高级�
   await page.getByLabel('并发数').fill('5');
   await page.getByLabel('请求超时（秒）').fill('90');
   await page.getByLabel('自动重试次数').fill('1');
-  await page.getByRole('button', { name: '保存' }).click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
 
   const item = page.locator('.aiwt-profile-item').first();
   await expect(item).toContainText('本地服务');
@@ -106,7 +106,7 @@ test('保存前校验必填项、地址协议与额外参数，并保留高级�
   // API Key 与 Authorization 请求头冲突时拒绝保存。
   await page.getByLabel('API Key', { exact: true }).fill(API_KEY);
   await page.getByLabel('自定义请求头').fill('Authorization: Bearer token-1234');
-  await page.getByRole('button', { name: '保存' }).click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
   const conflict = page.locator('.aiwt-issues');
   await expect(conflict).toContainText('Authorization');
   expect(await conflict.textContent()).not.toContain(API_KEY);
@@ -115,6 +115,6 @@ test('保存前校验必填项、地址协议与额外参数，并保留高级�
   // 浏览器禁止设置的请求头有明确提示。
   await page.getByLabel('API Key', { exact: true }).fill('');
   await page.getByLabel('自定义请求头').fill('Host: example.com');
-  await page.getByRole('button', { name: '保存' }).click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.locator('.aiwt-issues')).toContainText('Host');
 });
