@@ -58,6 +58,17 @@ describe('buildInlinePayload', () => {
     expect(buildInlinePayload(rootOf('<p> </p>'))).toBeNull();
   });
 
+  it('仅屏幕阅读器可见的文本不进入原文', () => {
+    // 徽章里藏着的 reputation score：用户看不见，却会把纯数字徽章变成翻译单元。
+    const payload = buildInlinePayload(
+      rootOf(
+        '<span class="badge"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden">reputation score</span>21</span>',
+      ),
+    );
+
+    expect(payload).toBeNull();
+  });
+
   it('代码块本身作为翻译单元时被拒绝', () => {
     expect(buildInlinePayload(rootOf('<pre>const x = 1</pre>'))).toBeNull();
   });
