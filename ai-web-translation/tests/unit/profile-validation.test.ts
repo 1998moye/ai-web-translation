@@ -118,7 +118,7 @@ describe('validateProfileDraft：自定义请求头', () => {
   });
 
   it('拒绝空的请求头名和含换行的值', () => {
-    expect(fields(draft({ headers: { ' '.repeat(2): 'v' } }))).toEqual(['headers']);
+    expect(fields(draft({ headers: { ['  ']: 'v' } }))).toEqual(['headers']);
     expect(fields(draft({ headers: { 'X-Bad': 'line1\r\nInjected: 1' } }))).toEqual(['headers']);
   });
 });

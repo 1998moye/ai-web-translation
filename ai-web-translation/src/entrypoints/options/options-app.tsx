@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { createChromeStorage } from '@/modules/site-preferences/key-value-storage';
 import { StoredSitePreferences } from '@/modules/site-preferences/site-preferences';
+import { StoredTranslationProfiles } from '@/modules/translation-profile/profile-store';
 import { HealthStatus } from './health-status';
 import { SitePreferencesPanel } from './site-preferences-panel';
 import { TranslationProfilesPanel } from './translation-profiles-panel';
@@ -15,6 +16,7 @@ const TABS: readonly { id: TabId; label: string }[] = [
 export function OptionsApp() {
   const [tab, setTab] = useState<TabId>('profiles');
   const repository = useMemo(() => new StoredSitePreferences(createChromeStorage()), []);
+  const profileRepository = useMemo(() => new StoredTranslationProfiles(createChromeStorage()), []);
 
   return (
     <main className="aiwt-options">
@@ -48,7 +50,7 @@ export function OptionsApp() {
         aria-labelledby="aiwt-tab-profiles"
         hidden={tab !== 'profiles'}
       >
-        <TranslationProfilesPanel />
+        <TranslationProfilesPanel repository={profileRepository} />
       </section>
 
       <section role="tabpanel" id="aiwt-panel-sites" aria-labelledby="aiwt-tab-sites" hidden={tab !== 'sites'}>
