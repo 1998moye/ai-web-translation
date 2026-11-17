@@ -210,11 +210,13 @@ test('相同原文命中缓存，清空缓存后才重新请求，且不影响�
   expect(await chatRequests(request, 'completions')).toBe(before + 1);
 
   await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await page.getByRole('link', { name: /译文缓存/ }).click();
   await expect(page.locator('.aiwt-cache-count')).toContainText('1');
   await page.getByRole('button', { name: '清空译文缓存' }).click();
   await expect(page.getByText('译文缓存已清空')).toBeVisible();
   await expect(page.locator('.aiwt-cache-count')).toContainText('0');
   // 清空缓存不会删除翻译服务配置。
+  await page.getByRole('link', { name: /翻译服务/ }).click();
   await expect(page.locator('.aiwt-profile-item')).toHaveCount(1);
 
   await page.goto('/article.html');

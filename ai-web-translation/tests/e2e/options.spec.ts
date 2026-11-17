@@ -15,9 +15,9 @@ test('设置页展示页签、后台状态与两类独立的网站偏好', async
 
   await expect(optionsPage.getByRole('heading', { name: 'AI 网页翻译' })).toBeVisible();
   await expect(optionsPage.locator('.aiwt-health')).toContainText('扩展后台已连接');
-  await expect(optionsPage.getByRole('tab', { name: '翻译服务配置' })).toHaveAttribute('aria-selected', 'true');
+  await expect(optionsPage.getByRole('link', { name: /翻译服务/ })).toHaveAttribute('aria-current', 'page');
 
-  await optionsPage.getByRole('tab', { name: '网站偏好' }).click();
+  await optionsPage.getByRole('link', { name: /网站偏好/ }).click();
   const autoSection = optionsPage.locator('section[aria-labelledby="aiwt-auto-translate-heading"]');
   const disabledSection = optionsPage.locator('section[aria-labelledby="aiwt-disabled-button-heading"]');
 

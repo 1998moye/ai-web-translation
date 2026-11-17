@@ -98,6 +98,37 @@ test('按钮拖到左侧时展开面板仍在视口内', async ({ page }) => {
   expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(viewport.width);
 });
 
+test('按钮靠近顶部时面板向下展开且不超出视口', async ({ page }) => {
+  const fab = page.locator('.aiwt-fab-main');
+  const box = await fab.boundingBox();
+  if (!box) throw new Error('缺少按钮位置');
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(40, 24, { steps: 12 });
+  await page.mouse.up();
+
+  await openFabPanel(page);
+  const panelBox = await page.locator('.aiwt-fab-panel').boundingBox();
+  const viewport = page.viewportSize();
+  if (!panelBox || !viewport) throw new Error('缺少面板位置');
+
+  expect(panelBox.y).toBeGreaterThanOrEqual(0);
+  expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(viewport.height);
+});
+
+test('键盘聚焦展开面板，Esc 关闭且不误触翻译', async ({ page }) => {
+  const fab = page.locator('.aiwt-fab-main');
+  const panel = page.locator('.aiwt-fab-panel');
+
+  await fab.focus();
+  await expect(panel).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(page.locator('[data-aiwt="body-translation"]')).toHaveCount(0);
+});
+
 test('悬停展开设置与关闭入口', async ({ page }) => {
   await openFabPanel(page);
   const panel = page.locator('.aiwt-fab-panel');
@@ -145,7 +176,7 @@ test('永久关闭按完整域名保存，并可在设置页移除', async ({ pa
 
   const optionsPage = await extensionContext.newPage();
   await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
-  await optionsPage.getByRole('tab', { name: '网站偏好' }).click();
+  await optionsPage.getByRole('link', { name: /网站偏好/ }).click();
 
   const disabledSection = optionsPage.locator('section[aria-labelledby="aiwt-disabled-button-heading"]');
   const autoSection = optionsPage.locator('section[aria-labelledby="aiwt-auto-translate-heading"]');

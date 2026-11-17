@@ -75,6 +75,7 @@ test('配置不合法时不发起测试请求，而是先报校验问题', async
 
 test('翻译提示词可编辑、保存、恢复默认，并在重新加载后保持', async ({ page, extensionId }) => {
   await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await page.getByRole('link', { name: /翻译提示词/ }).click();
 
   const promptField = page.getByLabel('提示词内容（内置默认）');
   await expect(promptField).toHaveValue(/翻译引擎/);
@@ -97,10 +98,12 @@ test('翻译提示词可编辑、保存、恢复默认，并在重新加载后�
 
 test('自定义提示词实际发送给翻译服务', async ({ page, extensionId }) => {
   await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await page.getByRole('link', { name: /翻译提示词/ }).click();
   await page.getByLabel('提示词内容（内置默认）').fill('自定义提示词：只输出 {"translations":[{"id","text"}]}。');
   await page.getByRole('button', { name: '保存提示词' }).click();
   await expect(page.locator('.aiwt-status')).toContainText('翻译提示词已保存');
 
+  await page.getByRole('link', { name: /翻译服务/ }).click();
   await page.getByRole('button', { name: '新建配置' }).click();
   await page.getByLabel('配置名称').fill('本地模拟服务');
   await page.getByLabel('模型名').fill('mock-model');

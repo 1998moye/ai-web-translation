@@ -63,7 +63,7 @@ export function isDragGesture(movedX: number, movedY: number): boolean {
   return Math.abs(movedX) > DRAG_THRESHOLD_PX || Math.abs(movedY) > DRAG_THRESHOLD_PX;
 }
 
-export const PANEL_WIDTH_PX = 236;
+export const PANEL_WIDTH_PX = 304;
 const PANEL_GAP_PX = 64;
 const PANEL_EDGE_MARGIN_PX = 8;
 

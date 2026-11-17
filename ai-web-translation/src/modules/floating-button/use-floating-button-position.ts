@@ -17,6 +17,7 @@ export interface FloatingButtonPositionApi {
   position: ButtonPosition;
   dragging: boolean;
   panelSide: 'left' | 'right';
+  panelVertical: 'up' | 'down';
   buttonRef: RefObject<HTMLDivElement | null>;
   handlers: FloatingButtonHandlers;
 }
@@ -147,6 +148,8 @@ export function useFloatingButtonPosition({
     position,
     dragging,
     panelSide: panelSideFor(position.left, win.innerWidth),
+    // 靠近顶部时面板向下展开，避免被视口上边缘裁切。
+    panelVertical: position.top < 380 ? 'down' : 'up',
     buttonRef,
     handlers: {
       onPointerDown,

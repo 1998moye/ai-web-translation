@@ -9,7 +9,7 @@ test.beforeEach(async ({ serviceWorker }) => {
 
 test('可以新建、编辑默认、删除翻译服务配置，重新加载后保持一致且密钥脱敏', async ({ page, extensionId }) => {
   await page.goto(`chrome-extension://${extensionId}/options.html`);
-  await expect(page.getByRole('tab', { name: '翻译服务配置' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('link', { name: /翻译服务/ })).toHaveAttribute('aria-current', 'page');
 
   // 新建配置：额外请求参数默认显式关闭思考。
   await page.getByRole('button', { name: '新建配置' }).click();
