@@ -79,6 +79,25 @@ test('窗口缩小时按钮仍在可视区域内', async ({ page }) => {
     .toBe(true);
 });
 
+test('按钮拖到左侧时展开面板仍在视口内', async ({ page }) => {
+  const fab = page.locator('.aiwt-fab-main');
+  const box = await fab.boundingBox();
+  if (!box) throw new Error('缺少按钮位置');
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(20, box.y + box.height / 2, { steps: 10 });
+  await page.mouse.up();
+
+  await openFabPanel(page);
+  const panelBox = await page.locator('.aiwt-fab-panel').boundingBox();
+  const viewport = page.viewportSize();
+  if (!panelBox || !viewport) throw new Error('缺少面板位置');
+
+  expect(panelBox.x).toBeGreaterThanOrEqual(0);
+  expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(viewport.width);
+});
+
 test('悬停展开设置与关闭入口', async ({ page }) => {
   await openFabPanel(page);
   const panel = page.locator('.aiwt-fab-panel');

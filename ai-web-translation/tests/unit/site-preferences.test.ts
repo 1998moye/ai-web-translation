@@ -47,10 +47,20 @@ describe('SitePreferences', () => {
     expect(await HostDisabled('docs.example.com', 'DOCS.Example.com:443')).toBe(true);
   });
 
+  it('保留 localhost 这类无点主机名', async () => {
+    const storage = new MemoryKeyValueStorage();
+    const preferences = new StoredSitePreferences(storage);
+
+    await preferences.disableButtonForSite('localhost');
+
+    expect(await preferences.isButtonDisabled('localhost')).toBe(true);
+    expect(await new StoredSitePreferences(storage).isButtonDisabled('localhost')).toBe(true);
+  });
+
   it('损坏或非法存储数据被规范化', async () => {
     const storage = new MemoryKeyValueStorage();
     await storage.write(SITE_PREFERENCES_KEY, {
-      disabledButtonHosts: ['A.example.com', 'a.example.com', 42, 'not-a-host'],
+      disabledButtonHosts: ['A.example.com', 'a.example.com', 42, 'http://example.com'],
       autoTranslateHosts: 'nope',
     });
 

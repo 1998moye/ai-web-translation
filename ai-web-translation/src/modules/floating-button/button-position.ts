@@ -62,3 +62,16 @@ export const DRAG_THRESHOLD_PX = 4;
 export function isDragGesture(movedX: number, movedY: number): boolean {
   return Math.abs(movedX) > DRAG_THRESHOLD_PX || Math.abs(movedY) > DRAG_THRESHOLD_PX;
 }
+
+export const PANEL_WIDTH_PX = 236;
+const PANEL_GAP_PX = 64;
+const PANEL_EDGE_MARGIN_PX = 8;
+
+/**
+ * 展开面板的显示侧：默认在按钮左侧；按钮靠左时翻到右侧，
+ * 避免设置与关闭入口被推出视口。
+ */
+export function panelSideFor(left: number, viewportWidth: number): 'left' | 'right' {
+  const fitsOnLeft = left - PANEL_GAP_PX - PANEL_WIDTH_PX >= PANEL_EDGE_MARGIN_PX;
+  return fitsOnLeft ? 'left' : 'right';
+}

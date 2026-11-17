@@ -29,13 +29,20 @@ export function normalizeHostname(hostname: string): string {
   return hostname.trim().toLowerCase().replace(/:\d+$/, '').replace(/\.$/, '');
 }
 
+/** 接受 DNS 主机名、localhost、IPv4/IPv6 字面量；拒绝 URL 片段与空白。 */
+function isValidHostname(host: string): boolean {
+  if (!host) return false;
+  if (/[\s/?#@]/.test(host)) return false;
+  return true;
+}
+
 function normalizeHostList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const hosts = new Set<string>();
   for (const item of value) {
     if (typeof item !== 'string') continue;
     const host = normalizeHostname(item);
-    if (host && host.includes('.')) hosts.add(host);
+    if (isValidHostname(host)) hosts.add(host);
   }
   return [...hosts].sort();
 }

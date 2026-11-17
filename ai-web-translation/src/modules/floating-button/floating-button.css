@@ -113,6 +113,11 @@
   transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
 }
 
+.aiwt-fab[data-aiwt-panel-side='right'] .aiwt-fab-panel {
+  right: auto;
+  left: 64px;
+}
+
 .aiwt-fab:hover .aiwt-fab-panel,
 .aiwt-fab:focus-within .aiwt-fab-panel,
 .aiwt-fab[data-aiwt-dragging='true'] .aiwt-fab-panel {

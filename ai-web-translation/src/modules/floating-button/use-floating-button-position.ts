@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
-import { clampButtonPosition, defaultButtonPosition, isDragGesture, moveButtonPosition } from './button-position';
+import { clampButtonPosition, defaultButtonPosition, isDragGesture, moveButtonPosition, panelSideFor } from './button-position';
 import type { ButtonPosition, ButtonPositionStore } from './button-position-store';
 
 const FALLBACK_SIZE = { width: 52, height: 52 };
@@ -16,6 +16,7 @@ export interface FloatingButtonHandlers {
 export interface FloatingButtonPositionApi {
   position: ButtonPosition;
   dragging: boolean;
+  panelSide: 'left' | 'right';
   buttonRef: RefObject<HTMLDivElement | null>;
   handlers: FloatingButtonHandlers;
 }
@@ -145,6 +146,7 @@ export function useFloatingButtonPosition({
   return {
     position,
     dragging,
+    panelSide: panelSideFor(position.left, win.innerWidth),
     buttonRef,
     handlers: {
       onPointerDown,

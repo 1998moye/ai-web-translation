@@ -4,6 +4,7 @@ import {
   defaultButtonPosition,
   isDragGesture,
   moveButtonPosition,
+  panelSideFor,
 } from '@/modules/floating-button/button-position';
 import { MemoryKeyValueStorage } from '@/modules/site-preferences/memory-storage';
 import { normalizeButtonPosition, StoredButtonPosition } from '@/modules/floating-button/button-position-store';
@@ -41,6 +42,11 @@ describe('悬浮按钮位置', () => {
     expect(isDragGesture(4, 4)).toBe(false);
     expect(isDragGesture(10, 0)).toBe(true);
     expect(isDragGesture(0, -9)).toBe(true);
+  });
+
+  it('按钮靠左时面板翻到右侧，避免溢出视口', () => {
+    expect(panelSideFor(12, 1200)).toBe('right');
+    expect(panelSideFor(1136, 1200)).toBe('left');
   });
 });
 

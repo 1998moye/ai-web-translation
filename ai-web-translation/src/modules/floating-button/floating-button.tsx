@@ -21,7 +21,7 @@ export interface FloatingButtonProps {
 }
 
 export function FloatingButton({ snapshot, positionStore, actions }: FloatingButtonProps) {
-  const { position, dragging, buttonRef, handlers } = useFloatingButtonPosition({
+  const { position, dragging, panelSide, buttonRef, handlers } = useFloatingButtonPosition({
     store: positionStore,
     onActivate: actions.onMainAction,
   });
@@ -46,6 +46,7 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
       style={{ left: `${position.left}px`, top: `${position.top}px` }}
       data-aiwt-phase={snapshot.phase}
       data-aiwt-dragging={dragging ? 'true' : 'false'}
+      data-aiwt-panel-side={panelSide}
     >
       {snapshot.fakeEngine && <div className="aiwt-fab-badge">开发演示 · 模拟翻译</div>}
 
