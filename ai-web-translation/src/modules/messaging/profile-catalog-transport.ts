@@ -3,7 +3,7 @@ import type {
   TranslationProfileCatalog,
   TranslationProfileSummary,
 } from '../translation-contract/profile-catalog';
-import type { TranslationProfileRepository } from '../translation-profile/profile-store';
+
 
 export const PROFILE_CATALOG_REQUEST_TYPE = 'aiwt:profile-catalog';
 
@@ -36,17 +36,9 @@ export function isProfileCatalogResponse(value: unknown): value is ProfileCatalo
 
 /** 后台侧：只返回配置摘要，完整配置与密钥不离开后台。 */
 export async function createProfileCatalogResponse(
-  repository: TranslationProfileRepository,
+  catalog: TranslationProfileCatalog,
 ): Promise<ProfileCatalogResponse> {
-  const state = await repository.read();
-  return {
-    ok: true,
-    profiles: state.profiles.map((profile) => ({
-      id: profile.id,
-      name: profile.name,
-      isDefault: profile.id === state.defaultProfileId,
-    })),
-  };
+  return { ok: true, profiles: [...(await catalog.listProfiles())] };
 }
 
 /**

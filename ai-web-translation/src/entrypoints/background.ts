@@ -20,12 +20,14 @@ import { createFetchHttpAdapter } from '@/modules/translation-chat-completions/h
 import { ChatCompletionsTranslationEngine } from '@/modules/translation-engine/chat-completions-engine';
 import { createChromeStorage } from '@/modules/site-preferences/key-value-storage';
 import { StoredTranslationProfiles } from '@/modules/translation-profile/profile-store';
+import { StoredTranslationProfileCatalog } from '@/modules/translation-profile/profile-catalog';
 import { StoredTranslationPrompt } from '@/modules/translation-prompt/prompt-store';
 import { StoredTranslationCache } from '@/modules/translation-cache/translation-cache';
 
 export default defineBackground(() => {
   const storage = createChromeStorage();
   const profiles = new StoredTranslationProfiles(storage);
+  const profileCatalog = new StoredTranslationProfileCatalog(profiles);
   const prompts = new StoredTranslationPrompt(storage);
   const cache = new StoredTranslationCache(storage);
   const http = createFetchHttpAdapter();
@@ -54,7 +56,7 @@ export default defineBackground(() => {
 
     // 内容脚本只能拿到配置摘要，完整配置与密钥留在后台。
     if (isProfileCatalogRequest(message)) {
-      void createProfileCatalogResponse(profiles).then(
+      void createProfileCatalogResponse(profileCatalog).then(
         (response) => sendResponse(response),
         () => sendResponse({ ok: true, profiles: [] }),
       );
