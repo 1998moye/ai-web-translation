@@ -118,3 +118,25 @@ test('保存前校验必填项、地址协议与额外参数，并保留高级�
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.locator('.aiwt-issues')).toContainText('Host');
 });
+
+test('只填基础地址即可保存，提示里显示补全后的完整端点', async ({ page, extensionId }) => {
+  await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await page.getByRole('button', { name: '新建配置' }).click();
+
+  await page.getByLabel('配置名称').fill('基础地址服务');
+  await page.getByLabel('请求方式').selectOption('chat-completions');
+  await page.getByLabel('请求地址').fill('https://ollama.com/v1');
+  await page.getByLabel('模型名').fill('test-model');
+
+  const urlField = page.locator('.aiwt-field').filter({ has: page.locator('#aiwt-profile-url') });
+  await expect(urlField.locator('.aiwt-field-hint')).toContainText('ollama.com/v1/chat/completions');
+  await expect(page.getByLabel('请求地址')).toHaveValue('https://ollama.com/v1');
+
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page.locator('.aiwt-profile-item')).toHaveCount(1);
+
+  // 地址按用户填写的原样保存，补全发生在发起请求时。
+  await page.reload();
+  await page.getByRole('button', { name: '编辑' }).first().click();
+  await expect(page.getByLabel('请求地址')).toHaveValue('https://ollama.com/v1');
+});

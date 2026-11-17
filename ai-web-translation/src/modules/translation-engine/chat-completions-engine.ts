@@ -17,6 +17,7 @@ import { buildChatCompletionRequest } from '../translation-chat-completions/requ
 import { extractCompletionContent, parseTranslationResult } from '../translation-chat-completions/response';
 import type { HttpAdapter } from '../translation-chat-completions/http-adapter';
 import type { TranslationProfile } from '../translation-profile/profile';
+import { resolveRequestUrl } from '../translation-profile/request-format';
 import type { TranslationProfileRepository } from '../translation-profile/profile-store';
 import type { TranslationPromptRepository } from '../translation-prompt/prompt-store';
 import { createConcurrencyLimiter, type ConcurrencyLimiter } from './concurrency-limiter';
@@ -233,7 +234,7 @@ export class ChatCompletionsTranslationEngine implements TranslationEngine {
       sourceText,
       sourceLanguage: CACHE_SOURCE_LANGUAGE,
       targetLanguage: CACHE_TARGET_LANGUAGE,
-      serviceUrl: snapshot.profile.url,
+      serviceUrl: resolveRequestUrl(snapshot.profile.url, snapshot.profile.requestFormat),
       model: snapshot.profile.model,
       prompt: snapshot.prompt,
       extraParams: snapshot.profile.extraParams,

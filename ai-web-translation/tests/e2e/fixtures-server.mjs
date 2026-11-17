@@ -31,7 +31,9 @@ const server = http.createServer(async (request, response) => {
 
   // 可控的 Chat Completions 替身：让端到端测试验证完整链路的用户可见表现。
   if (url.pathname.startsWith('/mock/chat/')) {
-    await handleMockChat(url.pathname.slice('/mock/chat/'.length), request, response);
+    // 配置里只填基础地址时扩展会补上 /chat/completions，两种写法都接受。
+    const scenarioPath = url.pathname.slice('/mock/chat/'.length).replace(/\/chat\/completions\/?$/, '');
+    await handleMockChat(scenarioPath, request, response);
     return;
   }
 

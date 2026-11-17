@@ -4,6 +4,7 @@ import {
   type TranslationProfile,
   type TranslationProfileDraft,
 } from './profile';
+import type { RequestFormatId } from './request-format';
 import {
   parseExtraParamsJson,
   parseHeaderLines,
@@ -21,6 +22,7 @@ export interface ProfileFormValues {
   url: string;
   apiKey: string;
   model: string;
+  requestFormat: RequestFormatId;
   headersText: string;
   extraParamsText: string;
   concurrency: string;
@@ -37,6 +39,7 @@ export function toFormValues(profile?: TranslationProfile): ProfileFormValues {
 
   return {
     name: source.name,
+    requestFormat: source.requestFormat,
     url: source.url,
     apiKey: source.apiKey,
     model: source.model,
@@ -72,6 +75,7 @@ export function toDraft(values: ProfileFormValues): DraftResult {
 
   const draft: TranslationProfileDraft = {
     name: values.name,
+    requestFormat: values.requestFormat,
     url: values.url,
     apiKey: values.apiKey,
     model: values.model,

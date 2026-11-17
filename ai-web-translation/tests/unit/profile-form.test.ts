@@ -4,6 +4,7 @@ import { toDraft, toFormValues, type ProfileFormValues } from '@/modules/transla
 
 const EXISTING: TranslationProfile = {
   id: 'prof_existing',
+  requestFormat: 'chat-completions',
   name: '主力服务',
   url: 'https://api.example.com/v1/chat/completions',
   apiKey: 'sk-live-secret-abcd1234',
@@ -112,6 +113,7 @@ describe('toDraft', () => {
     if (!result.ok) return;
     expect(result.draft).toEqual({
       name: EXISTING.name,
+      requestFormat: EXISTING.requestFormat,
       url: EXISTING.url,
       apiKey: EXISTING.apiKey,
       model: EXISTING.model,

@@ -1,4 +1,5 @@
 import { normalizeText } from '@/shared/text';
+import { findRequestFormat } from './request-format';
 import {
   checkRequestAddress,
   hasCustomAuthorization,
@@ -18,7 +19,8 @@ export type ProfileField =
   | 'extraParams'
   | 'concurrency'
   | 'timeoutMs'
-  | 'retryCount';
+  | 'retryCount'
+  | 'requestFormat';
 
 /** 面向用户的校验问题：只包含字段与可读原因，不回显密钥或请求头值。 */
 export interface ProfileValidationIssue {
@@ -37,6 +39,10 @@ export function validateProfileDraft(draft: TranslationProfileDraft): ProfileVal
 
   if (!normalizeText(draft.name)) {
     issues.push({ field: 'name', message: '请填写配置名称。' });
+  }
+
+  if (!findRequestFormat(draft.requestFormat)) {
+    issues.push({ field: 'requestFormat', message: '请选择受支持的请求方式。' });
   }
 
   const address = checkRequestAddress(draft.url);

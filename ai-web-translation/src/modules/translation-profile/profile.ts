@@ -1,5 +1,10 @@
 import type { ProfileId } from '@/shared/ids';
 import { normalizeText } from '@/shared/text';
+import {
+  DEFAULT_REQUEST_FORMAT_ID,
+  findRequestFormat,
+  type RequestFormatId,
+} from './request-format';
 
 /**
  * 插件任务设置：并发、超时和重试是扩展侧行为，不会进入请求体。
@@ -11,12 +16,14 @@ export interface ProfileRuntimeSettings {
 }
 
 /**
- * 一份翻译服务配置：完整 Chat Completions 地址、可选 API Key、模型、
+ * 一份翻译服务配置：接口方式、地址、可选 API Key、模型、
  * 自定义请求头和额外请求参数，全部保存在本机扩展存储。
  */
 export interface TranslationProfile {
   id: ProfileId;
   name: string;
+  /** 接口方式；请求地址会按它补全成完整端点。 */
+  requestFormat: RequestFormatId;
   url: string;
   apiKey: string;
   model: string;
@@ -54,6 +61,7 @@ export const LOCAL_HTTP_HOSTS: readonly string[] = ['localhost', '127.0.0.1'];
 export function createProfileDraft(overrides: Partial<TranslationProfileDraft> = {}): TranslationProfileDraft {
   return {
     name: '',
+    requestFormat: DEFAULT_REQUEST_FORMAT_ID,
     url: '',
     apiKey: '',
     model: '',
@@ -130,6 +138,7 @@ export function maskApiKey(apiKey: string): string | null {
 export function normalizeProfileDraft(draft: TranslationProfileDraft): TranslationProfileDraft {
   return {
     name: draft.name.trim(),
+    requestFormat: findRequestFormat(draft.requestFormat)?.id ?? DEFAULT_REQUEST_FORMAT_ID,
     url: draft.url.trim(),
     apiKey: draft.apiKey.trim(),
     model: draft.model.trim(),

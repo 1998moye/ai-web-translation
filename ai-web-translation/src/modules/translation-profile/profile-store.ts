@@ -12,6 +12,7 @@ import {
   type TranslationProfileDraft,
 } from './profile';
 import { validateProfileDraft, type ProfileValidationIssue } from './profile-validation';
+import { DEFAULT_REQUEST_FORMAT_ID, findRequestFormat } from './request-format';
 
 export const STORED_PROFILES_KEY = 'aiwt.translationProfiles';
 
@@ -181,6 +182,8 @@ function normalizeStoredProfile(value: unknown): TranslationProfile | null {
   return {
     id,
     name: typeof record.name === 'string' ? record.name : '',
+    // 旧版本配置没有请求方式，按当时唯一支持的 Chat Completions 读取。
+    requestFormat: findRequestFormat(record.requestFormat)?.id ?? DEFAULT_REQUEST_FORMAT_ID,
     url: typeof record.url === 'string' ? record.url : '',
     apiKey: typeof record.apiKey === 'string' ? record.apiKey : '',
     model: typeof record.model === 'string' ? record.model : '',

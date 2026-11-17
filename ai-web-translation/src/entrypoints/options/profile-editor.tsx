@@ -1,9 +1,15 @@
 import { useState } from 'react';
 import type { ProfileFormValues } from '@/modules/translation-profile/profile-form';
 import type { ProfileField, ProfileValidationIssue } from '@/modules/translation-profile/profile-validation';
+import {
+  REQUEST_FORMATS,
+  resolveRequestUrl,
+  type RequestFormatId,
+} from '@/modules/translation-profile/request-format';
 
 const FIELD_LABELS: Record<ProfileField, string> = {
   name: '配置名称',
+  requestFormat: '请求方式',
   url: '请求地址',
   model: '模型名',
   apiKey: 'API Key',
@@ -90,15 +96,36 @@ export function ProfileEditor({
       </div>
 
       <div className="aiwt-field">
+        <label htmlFor="aiwt-profile-format">请求方式</label>
+        <select
+          id="aiwt-profile-format"
+          value={values.requestFormat}
+          aria-invalid={invalid('requestFormat')}
+          onChange={(event) => update('requestFormat', event.target.value as RequestFormatId)}
+        >
+          {REQUEST_FORMATS.map((format) => (
+            <option key={format.id} value={format.id}>
+              {format.label}
+            </option>
+          ))}
+        </select>
+        <p className="aiwt-field-hint">决定请求地址补全成哪个接口。目前只有 Chat Completions。</p>
+        {errorOf('requestFormat') && <p className="aiwt-field-error">{errorOf('requestFormat')}</p>}
+      </div>
+
+      <div className="aiwt-field">
         <label htmlFor="aiwt-profile-url">请求地址</label>
         <input
           id="aiwt-profile-url"
           value={values.url}
           aria-invalid={invalid('url')}
-          placeholder="https://api.example.com/v1/chat/completions"
+          placeholder="https://api.example.com/v1"
           onChange={(event) => update('url', event.target.value)}
         />
-        <p className="aiwt-field-hint">填写完整的 Chat Completions 地址。远程只允许 HTTPS，localhost 与 127.0.0.1 可用 HTTP。</p>
+        <p className="aiwt-field-hint">
+          填到版本号即可，扩展会自动补全为 {resolveRequestUrl(values.url || 'https://api.example.com/v1', values.requestFormat)}。
+          远程只允许 HTTPS，localhost 与 127.0.0.1 可用 HTTP。
+        </p>
         {errorOf('url') && <p className="aiwt-field-error">{errorOf('url')}</p>}
       </div>
 

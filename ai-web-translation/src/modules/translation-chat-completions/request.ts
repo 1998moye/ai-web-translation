@@ -1,5 +1,6 @@
 import type { TranslationContext, TranslationUnit } from '../translation-contract/types';
 import type { TranslationProfileDraft } from '../translation-profile/profile';
+import { resolveRequestUrl } from '../translation-profile/request-format';
 import type { HttpRequest } from './http-adapter';
 
 export interface ChatCompletionRequestInput {
@@ -34,7 +35,8 @@ export function buildChatCompletionRequest(input: ChatCompletionRequestInput): H
   };
 
   return {
-    url: profile.url,
+    // 用户只填基础地址时在这里补全，请求地址与缓存键都使用补全后的完整端点。
+    url: resolveRequestUrl(profile.url, profile.requestFormat),
     method: 'POST',
     headers: buildChatCompletionHeaders(profile),
     body: JSON.stringify(body),
