@@ -25,3 +25,8 @@
 - 悬停展开设置、关闭一次、永久关闭、自动翻译、重试/停止/重新翻译等入口；展示按钮本身不发起翻译。
 - 验收：`tests/unit/button-position.test.ts`（7 用例）；`tests/e2e/floating-button.spec.ts` 覆盖默认显示、Shadow DOM 样式隔离、拖动后刷新与跨站保持、resize 可见、悬停展开、设置页打开、关闭一次、永久关闭。
 - 备注：设置入口通过后台消息打开设置页（内容脚本不能直接调用 `runtime.openOptionsPage`）；系统 Chrome 137+ 禁止 `--load-extension`，手动加载步骤见 `ai-web-translation/README.md`。
+
+### 2026-11-17 复核补丁
+
+- 修复按钮拖到视口左侧时展开面板溢出屏幕的问题：面板按按钮位置自动翻到右侧（`panelSideFor`），补充单元与端到端用例。
+- 补充"拖动结束后点击仍能正常触发翻译"的端到端断言。

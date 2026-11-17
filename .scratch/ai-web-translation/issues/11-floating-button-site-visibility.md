@@ -24,3 +24,8 @@
 - 完整域名隔离：`docs.example.com` 与 `example.com` / `blog.example.com` 互不影响；移除记录后下次打开恢复按钮。
 - 验收：`tests/unit/site-preferences.test.ts`（持久化、子域隔离、两类列表独立、损坏数据规范化、watch）；`tests/unit/page-translation-controller.test.ts`（关闭一次不写偏好、永久关闭按域名、其他子域可见）；`tests/e2e/floating-button.spec.ts`（127.0.0.1 与 localhost 隔离、刷新后隐藏、设置页移除后恢复）。
 - 已确认永久关闭不会删除翻译服务配置、译文缓存或自动翻译网站偏好（列表分别写入同一记录的独立字段）。
+
+### 2026-11-17 复核补丁
+
+- 修复 `localhost` 等不含点的主机名被偏好规范化丢弃、导致永久关闭在刷新后失效的问题，并补充单元用例。
+- 偏好规范化现在拒绝 URL 片段与空白，保留合法的单标签主机名。
