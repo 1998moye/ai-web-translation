@@ -109,20 +109,31 @@ function isFlexOrGrid(doc: Document, element: Element): boolean {
  * 只看外层就会拿到默认的黑色，译文与原文颜色对不上。
  */
 function textHostOf(source: Element): Element {
-  const host = (element: Element): Element => {
-    const children = Array.from(element.children).filter((child) => !isSkippedElement(child));
-    const hasOwnText = Array.from(element.childNodes).some(
-      (node) => node.nodeType === Node.TEXT_NODE && (node.nodeValue ?? '').trim(),
-    );
-    if (hasOwnText || children.length !== 1) return element;
-    return host(children[0]!);
+  let host = source;
+  let most = -1;
+
+  const walk = (element: Element): void => {
+    let direct = 0;
+    for (const node of Array.from(element.childNodes)) {
+      if (node.nodeType === Node.TEXT_NODE) direct += (node.nodeValue ?? '').trim().length;
+    }
+    // 直接承载最多文字的元素就是原文的排版来源（灰色常加在包住文字的内层 span 上）。
+    if (direct > most) {
+      most = direct;
+      host = element;
+    }
+    for (const child of Array.from(element.children)) {
+      if (isSkippedElement(child)) continue;
+      walk(child);
+    }
   };
 
   try {
-    return host(source);
+    walk(source);
   } catch {
     return source;
   }
+  return host;
 }
 
 function styleFor(doc: Document, source: Element, inTable: boolean): string {

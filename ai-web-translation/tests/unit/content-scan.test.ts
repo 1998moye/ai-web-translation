@@ -98,4 +98,19 @@ describe('scanTranslatableTargets', () => {
     document.body.innerHTML = '';
     expect(scanTranslatableTargets(document)).toEqual([]);
   });
+
+  it('只有按钮或链接的容器不算正文，交给界面文本原地翻译', () => {
+    setPage(
+      '<ul><li><summary>Watch 52</summary></li><li><a href="/x">Documentation</a></li>' +
+        '<li>Read the <a href="/y">guide</a> before you start.</li></ul>',
+    );
+
+    const targets = scanTranslatableTargets(document);
+    const body = targets.filter((target) => target.kind === 'body').map((target) => target.text);
+    const interfaces = targets.filter((target) => target.kind === 'interface').map((target) => target.text);
+
+    expect(body).toEqual(['Read the ⟦w1⟧guide⟦/w1⟧ before you start.']);
+    // 数字被占位标记保护，渲染时还原成原文。
+    expect(interfaces).toEqual(['Watch ⟦o1⟧', 'Documentation']);
+  });
 });

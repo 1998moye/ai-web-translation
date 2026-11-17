@@ -5,6 +5,7 @@ import {
   expandOpaqueMarkers,
   isCodeElement,
   isHiddenElement,
+  isSkippedElement,
   OWN_NODE_SELECTOR,
   type InlineFormat,
   type InlinePayload,
@@ -92,6 +93,32 @@ function isEligibleElement(element: HTMLElement, options: { allowInNavigation: b
   return true;
 }
 
+/**
+ * 元素自身的文字（排除内部交互控件的内容）。
+ *
+ * 「只有一个按钮或链接的容器」经常被当成正文段落，于是按钮旁边又多出一份译文；
+ * 这类容器没有自己的文字，应该交给界面文本就地翻译，而不是当正文重复翻译一遍。
+ */
+function proseTextOutsideControls(element: Element): string {
+  let text = '';
+
+  const walk = (node: Node): void => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      text += node.nodeValue ?? '';
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const child = node as Element;
+    if (child !== element && child.matches(INTERFACE_SELECTOR)) return;
+    if (isSkippedElement(child)) return;
+    for (const grandChild of Array.from(child.childNodes)) walk(grandChild);
+  };
+
+  walk(element);
+  return normalizeText(text);
+}
+
 function eligiblePayload(element: HTMLElement, allowInNavigation: boolean): InlinePayload | null {
   if (!isEligibleElement(element, { allowInNavigation })) return null;
   return buildInlinePayload(element);
@@ -103,6 +130,7 @@ function collectBodyCandidates(root: Element): Candidate[] {
   const consider = (element: HTMLElement, requireInlineOnly: boolean): void => {
     const payload = eligiblePayload(element, false);
     if (!payload) return;
+    if (!proseTextOutsideControls(element)) return;
     if (requireInlineOnly) {
       if (hasBlockishChild(element)) return;
       if (normalizeText(element.textContent ?? '').length < DIV_MIN_TEXT_LENGTH) return;

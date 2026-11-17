@@ -401,6 +401,21 @@ describe('PageTranslationSession 译文排版', () => {
     expect(style).toContain('font-weight: 700');
   });
 
+  it('多个子节点时，取承载文字最多的元素颜色', async () => {
+    setPage(
+      '<table><tbody><tr><td><div><span style="color: rgb(110, 119, 129)">feat: configure and record reasoning</span>' +
+        '<span>4 days ago</span></div></td></tr></tbody></table>',
+    );
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const style = document.querySelector('td [data-aiwt="body-translation"]')?.getAttribute('style') ?? '';
+    expect(style).toContain('color: rgb(110, 119, 129)');
+  });
+
   it('flex 容器里的译文放进原文内部，不会被挤成逐字竖排', async () => {
     setPage(
       '<div style="display: flex; gap: 8px"><p>Flex row paragraph text here.</p><span>Another element</span></div>',
