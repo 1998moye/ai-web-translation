@@ -21,3 +21,11 @@
 ### 2026-11-17 状态：未开始（等待实现组）
 
 本 ticket 依赖 06。分批、上下文、逐单元 ID 校验属于 Translation Engine Implementation 与划词气泡的公开行为；整页组的行内格式占位标记与安全渲染可复用（`src/modules/inline-format/`）。
+
+## Comments
+
+已完成（提交 `05d288b`）。
+
+- 落地：`translation-engine/translation-batches.ts`（按单元数与字符数分批）；`translation-segments.ts` 超长片段按词边界再拆；`selection-context.ts`（页面标题、小节标题、前一段原文）与「长选区才带上下文」规则；气泡按原文顺序逐条展示。
+- 验证：`tests/unit/translation-batches.test.ts`（6）、`chat-completions-engine.test.ts` 的分批、部分失败、缺失/重复/未知 ID、无效结构、上下文用例；生产 e2e 覆盖长选区逐条显示与部分失败。
+- 说明：批次并发完成，事件顺序不保证；调用方按单元 ID 对应原文，阅读顺序不受网络返回顺序影响。

@@ -21,3 +21,11 @@
 ### 2026-11-17 状态：未开始（等待实现组）
 
 本 ticket 依赖 07。译文缓存对页面侧隐藏：整页会话只通过 Translation Engine Interface 提交单元，缓存键与命中策略由实现负责；页面翻译会话首次请求固定配置快照已实现（`tests/unit/page-translation-session.test.ts`），可直接复用同一约定。
+
+## Comments
+
+已完成（提交 `5982143`）。
+
+- 落地：`translation-cache/`（键含规范化原文、语言方向、服务地址、模型、提示词、有效请求参数，不含 API Key；读取时逐字校验原文；条目上限淘汰最旧）；引擎在会话首次请求固化配置与提示词快照；设置页「译文缓存」面板可清空。
+- 验证：`tests/unit/translation-cache-key.test.ts`（7）、`translation-cache.test.ts`（9）、`chat-completions-engine.test.ts` 的缓存命中、失败不写入、配置隔离、会话快照用例；生产 e2e 用 mock 服务的请求计数验证命中与清空。
+- 说明：清空缓存只写缓存存储键，不触碰配置与网站偏好。

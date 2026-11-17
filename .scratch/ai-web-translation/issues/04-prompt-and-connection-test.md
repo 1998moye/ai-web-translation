@@ -21,3 +21,12 @@
 ### 2026-11-17 状态：未开始（等待实现组）
 
 ticket 01 已完成共享骨架与接口；本 ticket 依赖 03。默认翻译提示词属于 Translation Engine Implementation 内部，页面与整页会话不读取提示词内容。
+
+## Comments
+
+已完成（提交 `9debb21`）。
+
+- 落地：`translation-prompt/default-prompt.ts`、`prompt-store.ts`；`translation-chat-completions/`（http-adapter、request、response、errors、connection-test）；`messaging/connection-test.ts`；后台处理入口；设置页提示词面板与「测试连接」。
+- 验证：`tests/unit/translation-prompt.test.ts`（11）、`chat-completions.test.ts`（18）、`connection-test.test.ts`（13）、`tests/e2e/connection-test.spec.ts`（5，含慢响应下的「测试中」状态）。
+- 真实服务手动验证：使用 `.env` 中的兼容服务跑一次完整请求，返回「敏捷的棕色狐狸跃过懒狗。」（密钥未写入任何文件）。
+- 说明：测试连接只接受扩展自己的页面发起，并在后台重新校验配置，内容脚本无法借后台请求任意地址。

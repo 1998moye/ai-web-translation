@@ -20,3 +20,11 @@
 ### 2026-11-17 状态：未开始（等待实现组）
 
 共享前置 ticket 01 已完成（见 `01-extension-foundation.md` 的 Comments）：扩展骨架、Translation Engine / Translation Profile Catalog Interface、fake Adapter 与测试工具已就绪，本 ticket 的阻塞已解除。实现位置为 `ai-web-translation/`。
+
+## Comments
+
+已完成（提交 `a8603e0`）。
+
+- 落地：`src/modules/translation-profile/profile.ts`、`profile-store.ts`（CRUD、默认选择、悬空默认回落、损坏数据规范化、串行写入）、`profile-catalog.ts`（只读目录，仅 ID/名称/默认）、设置页 `translation-profiles-panel.tsx` + `profile-editor.tsx`。
+- 验证：`tests/unit/translation-profiles.test.ts`（15）、`tests/e2e/translation-profiles.spec.ts`（新建、重载持久化、默认切换、删除回落、密钥脱敏）。
+- 说明：删除默认配置时默认选择回落到剩余第一份配置，不留空默认。

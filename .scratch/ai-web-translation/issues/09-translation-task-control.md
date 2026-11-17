@@ -21,3 +21,11 @@
 ### 2026-11-17 状态：未开始（等待实现组）
 
 本 ticket 依赖 08。整页会话侧的取消语义已实现并通过测试（`PageTranslationSession.cancel/restore`，`tests/unit/page-translation-session.test.ts`）；并发、超时、重试与 429 等待属于 Translation Engine Implementation，完成后 19 才能开始。
+
+## Comments
+
+已完成（提交 `0bd4d1f`）。
+
+- 落地：`translation-engine/concurrency-limiter.ts`（信号量，按配置并发数）；引擎把超时信号（`AbortSignal.timeout`）与取消信号合并；按配置次数重试，仅网络错误、429、5xx 重试，429 尊重 `Retry-After`，400/401/403 不重试；取消中止进行中与排队中的批次且不写缓存。
+- 验证：`tests/unit/translation-task-control.test.ts`（12：并发峰值、串行、缓存不占并发、超时、取消、重试上限、限流等待、错误分类、重新提交）；生产 e2e 覆盖限流后自动重试与翻译中关闭气泡取消。
+- 说明：超时不在 spec 的可重试列表里，因此按不可重试处理；真实服务手动验证一次完整引擎链路（2 个单元 1 次请求，第二次全部命中缓存，占位标记 `⟦o1⟧` 保留）。

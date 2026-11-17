@@ -21,3 +21,11 @@
 ### 2026-11-17 状态：未开始（等待实现组）
 
 ticket 01 已完成共享骨架与接口；本 ticket 依赖 02。设置页的「翻译服务配置」页签占位已在 `ai-web-translation/src/entrypoints/options/translation-profiles-panel.tsx` 留好，替换该占位即可接入，不需要改动整页翻译组的页面与偏好实现。
+
+## Comments
+
+已完成（提交 `a8603e0`）。
+
+- 落地：`profile.ts`（HTTPS/localhost 地址规则、保留字段、浏览器禁用请求头、运行参数上下限）、`profile-validation.ts`（保存校验、额外参数 JSON 解析、请求头行解析）、`profile-form.ts`（表单唯一保存入口：解析文本域 → 秒转毫秒 → 完整校验）。
+- 验证：`tests/unit/profile-validation.test.ts`（27）、`tests/unit/profile-form.test.ts`（9）、设置页 e2e 覆盖高级设置往返与冲突提示。
+- 说明：校验错误只回显字段名与请求头名，不回显请求头值、密钥或解析失败的原始片段。

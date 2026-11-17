@@ -20,3 +20,11 @@
 ### 2026-11-17 状态：未开始（等待实现组）
 
 ticket 01 已完成共享骨架与接口；本 ticket 依赖 04。内容脚本入口 `ContentShell` 已提供 `selectionLayer` 装配位置（`ai-web-translation/src/modules/content-shell/content-shell.tsx`），划词浮层与悬浮按钮共用同一个 Shadow DOM 容器，不需要修改整页翻译实现。
+
+## Comments
+
+已完成（提交 `aa0f105`）。
+
+- 落地：`selection-translation/`（controller、dom selection source、React 浮层、样式）；后台 `translation-engine/chat-completions-engine.ts`；`messaging/translation-transport.ts`（Port 逐条推事件）与 `profile-catalog-transport.ts`；`content-assembly` 生产装配改用真实 Adapter。
+- 验证：`tests/unit/selection-translation.test.ts`（manual engine 覆盖图标、加载、成功、失败、选区切换、重复点击）；`tests/e2e-production/selection-translation.spec.ts` 用生产构建 + mock Chat Completions 端点覆盖真实链路。
+- 说明：点击图标时用 `mousedown` 阻止默认行为，避免浏览器清空选区导致点击后拿不到原文。

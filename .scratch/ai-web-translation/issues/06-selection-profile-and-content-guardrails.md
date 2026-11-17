@@ -21,3 +21,11 @@
 ### 2026-11-17 状态：未开始（等待实现组）
 
 本 ticket 依赖 05。语言识别（`src/modules/language/language.ts`）与内容保护（`src/modules/content-scan/`、`src/modules/inline-format/`）已由整页组实现，可在不改变共享 Interface 的前提下复用；划词气泡的配置切换只使用 Translation Profile Catalog 摘要。
+
+## Comments
+
+已完成（提交 `38dc526`）。
+
+- 落地：气泡内的配置下拉（只含 ID 与名称）与 `selectProfile`；`translation-segments.ts` 提取英文片段；选区读取排除 `pre/code/kbd/samp/var/tt` 内容并给出代码提示。
+- 验证：`tests/unit/selection-segments.test.ts`（8）、`selection-translation.test.ts` 的配置切换、不可用配置、语言与代码保护、混排用例；生产 e2e 覆盖切换配置不混用、代码内容不进入请求。
+- 说明：不可翻译选区仍显示图标但标记为不可用，点击只说明原因、不发起请求——这是「显示适当反馈」的实现方式。
