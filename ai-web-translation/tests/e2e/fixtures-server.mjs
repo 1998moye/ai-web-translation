@@ -68,9 +68,10 @@ async function handleMockChat(scenario, request, response) {
   if (scenario === 'slow') await new Promise((resolve) => setTimeout(resolve, 1200));
 
   // 默认场景：按请求单元逐个返回约定结构的译文。
+  const prefix = scenario === 'alt' ? '备选译文：' : '模拟译文：';
   const units = readUnits(body);
   const payload = {
-    translations: units.map((unit) => ({ id: unit.id, text: `模拟译文：${unit.text}` })),
+    translations: units.map((unit) => ({ id: unit.id, text: `${prefix}${unit.text}` })),
   };
 
   response.writeHead(200, { 'content-type': 'application/json' });

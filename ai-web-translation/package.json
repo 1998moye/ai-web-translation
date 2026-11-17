@@ -15,7 +15,7 @@
     "test:e2e": "playwright test",
     "verify": "npm run compile && npm run test && npm run build && npm run build:dev-fake",
     "e2e": "npm run build:dev-fake && playwright test",
-    "e2e:prod": "npm run build && cross-env AIWT_EXTENSION_PATH=.output/chrome-mv3 playwright test tests/e2e/selection-translation.spec.ts"
+    "e2e:prod": "npm run build && playwright test -c playwright.prod.config.ts"
   },
   "dependencies": {
     "react": "^19.2.0",

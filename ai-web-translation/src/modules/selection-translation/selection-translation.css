@@ -25,6 +25,15 @@
   background: #eff6ff;
 }
 
+.aiwt-selection-icon[data-aiwt-available='false'] {
+  color: #64748b;
+  opacity: 0.72;
+}
+
+.aiwt-selection-icon[data-aiwt-available='false']:hover {
+  background: #f1f5f9;
+}
+
 .aiwt-selection-bubble {
   position: fixed;
   z-index: 2147483001;
@@ -72,8 +81,47 @@
 .aiwt-selection-translation,
 .aiwt-selection-loading,
 .aiwt-selection-error,
+.aiwt-selection-pending,
 .aiwt-selection-source {
   margin: 0;
+}
+
+.aiwt-selection-profiles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.aiwt-selection-profiles select {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 12px;
+}
+
+.aiwt-selection-units {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aiwt-selection-units li {
+  display: grid;
+  gap: 2px;
+}
+
+.aiwt-selection-pending {
+  color: #475569;
 }
 
 .aiwt-selection-translation {
@@ -128,5 +176,15 @@
 
   .aiwt-selection-error {
     color: #fca5a5;
+  }
+
+  .aiwt-selection-profiles {
+    color: #94a3b8;
+  }
+
+  .aiwt-selection-profiles select {
+    background: #1e293b;
+    border-color: rgba(148, 163, 184, 0.3);
+    color: #e2e8f0;
   }
 }
