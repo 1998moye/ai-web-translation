@@ -7,8 +7,10 @@ import { resetExtensionStorage, test } from '../e2e/helpers/extension';
  */
 const CHAT_URL = 'http://127.0.0.1:4321/mock/chat/completions';
 
-test.beforeEach(async ({ serviceWorker }) => {
+test.beforeEach(async ({ serviceWorker, request }) => {
   await resetExtensionStorage(serviceWorker);
+  // 重置 mock 服务的请求计数，让「是否真的发了请求」的判断稳定。
+  await request.post('/mock/reset');
 });
 
 async function saveDefaultProfile(page: import('@playwright/test').Page, extensionId: string): Promise<void> {
@@ -242,4 +244,48 @@ test('切换模型后相同原文不会命中旧缓存', async ({ page, extensio
   await expect(page.locator('.aiwt-selection-bubble')).toContainText('模拟译文：');
 
   expect(await chatRequests(request, 'completions')).toBe(before + 1);
+});
+
+test('限流后自动重试并最终显示译文', async ({ page, extensionId, request }) => {
+  const before = await chatRequests(request, 'ratelimit-once');
+  expect(before).toBe(0);
+
+  await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await page.getByRole('button', { name: '新建配置' }).click();
+  await page.getByLabel('配置名称').fill('限流服务');
+  await page.getByLabel('模型名').fill('mock-model');
+  await page.getByLabel('请求地址').fill('http://127.0.0.1:4321/mock/chat/ratelimit-once');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+
+  await page.goto('/article.html');
+  await page.locator('#first').selectText();
+  await page.locator('.aiwt-selection-icon').click();
+
+  const bubble = page.locator('.aiwt-selection-bubble');
+  await expect(bubble).toHaveAttribute('data-aiwt-status', 'success');
+  await expect(bubble).toContainText('模拟译文：');
+  // 第一次 429，第二次成功。
+  expect(await chatRequests(request, 'ratelimit-once')).toBe(2);
+});
+
+test('翻译中关闭气泡会取消请求，迟到的译文不会再出现', async ({ page, extensionId }) => {
+  await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await page.getByRole('button', { name: '新建配置' }).click();
+  await page.getByLabel('配置名称').fill('慢响应服务');
+  await page.getByLabel('模型名').fill('mock-model');
+  await page.getByLabel('请求地址').fill('http://127.0.0.1:4321/mock/chat/slow');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+
+  await page.goto('/article.html');
+  await page.locator('#first').selectText();
+  await page.locator('.aiwt-selection-icon').click();
+
+  const bubble = page.locator('.aiwt-selection-bubble');
+  await expect(bubble).toHaveAttribute('data-aiwt-status', 'loading');
+
+  await bubble.getByRole('button', { name: '关闭译文气泡' }).click();
+  await expect(page.locator('.aiwt-selection-bubble')).toHaveCount(0);
+
+  await page.waitForTimeout(1800);
+  await expect(page.locator('.aiwt-selection-bubble')).toHaveCount(0);
 });

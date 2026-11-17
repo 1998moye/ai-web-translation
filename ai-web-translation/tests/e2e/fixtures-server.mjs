@@ -9,6 +9,8 @@ const port = Number(process.env.PORT ?? 4321);
 
 // 请求计数：让端到端测试能观察「是否真的产生了翻译请求」。
 const chatStats = new Map();
+/** 限流场景只拒绝第一次请求，之后正常返回。 */
+let rateLimitOnceHits = 0;
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -28,6 +30,14 @@ const server = http.createServer(async (request, response) => {
   if (url.pathname === '/mock/stats') {
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify(Object.fromEntries(chatStats)));
+    return;
+  }
+
+  if (url.pathname === '/mock/reset') {
+    chatStats.clear();
+    rateLimitOnceHits = 0;
+    response.writeHead(200, { 'content-type': 'text/plain' });
+    response.end('reset');
     return;
   }
 
@@ -66,6 +76,11 @@ async function handleMockChat(scenario, request, response) {
   if (scenario === 'forbidden') return reject(403);
   if (scenario === 'bad-request') return reject(400);
   if (scenario === 'rate-limited') return reject(429, { 'retry-after': '1' });
+  if (scenario === 'ratelimit-once') {
+    rateLimitOnceHits += 1;
+    if (rateLimitOnceHits === 1) return reject(429, { 'retry-after': '0.2' });
+    // 第一次限流之后正常返回，用于验证自动重试。
+  }
   if (scenario === 'server-error') return reject(503);
 
   if (scenario === 'garbage') {

@@ -81,8 +81,9 @@ describe('ChatCompletionsTranslationEngine：分批', () => {
     });
 
     expect(http.requests).toHaveLength(2);
-    expect(http.requests.map((request) => readUnitsFromBody(request.body).length)).toEqual([8, 2]);
-    expect(succeededIds(events)).toEqual(units(10).map((unit) => unit.id));
+    expect(http.requests.map((request) => readUnitsFromBody(request.body).length).sort()).toEqual([2, 8]);
+    // 批次并发完成，事件顺序不保证；调用方按单元 ID 对应原文。
+    expect(succeededIds(events).sort()).toEqual(units(10).map((unit) => unit.id).sort());
   });
 
   it('同一会话的多个批次使用相同配置与提示词', async () => {
