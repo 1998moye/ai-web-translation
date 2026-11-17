@@ -72,8 +72,9 @@ test('拖动按钮后位置在所有网站保持不变，且不会误触翻译',
   await expect(page.locator('[data-aiwt="body-translation"]')).toHaveCount(5);
 });
 
-test('拖到视口边缘松手后保留安全间距', async ({ page }) => {
+test('拖到视口边缘后藏在屏幕外探头，悬停完整弹出', async ({ page }) => {
   const fab = page.locator('.aiwt-fab-main');
+  const root = page.locator('.aiwt-fab');
   const box = await fab.boundingBox();
   const viewport = page.viewportSize();
   if (!box || !viewport) throw new Error('缺少按钮或视口尺寸');
@@ -83,28 +84,58 @@ test('拖到视口边缘松手后保留安全间距', async ({ page }) => {
   await page.mouse.move(viewport.width - 2, viewport.height - 2, { steps: 12 });
   await page.mouse.up();
   await page.mouse.move(10, 10);
-  await page.waitForTimeout(550);
+  await page.waitForTimeout(650);
 
+  await expect(root).toHaveAttribute('data-aiwt-edge-x', 'right');
+  await expect(root).toHaveAttribute('data-aiwt-edge-y', 'bottom');
+
+  // 探头态：按钮有一部分在屏幕外，但至少有 30px 宽、40px 高可见。
+  const peek = await fab.boundingBox();
+  if (!peek) throw new Error('缺少探头位置');
+  expect(peek.x + peek.width).toBeGreaterThan(viewport.width);
+  expect(peek.y + peek.height).toBeGreaterThan(viewport.height);
+  expect(viewport.width - peek.x).toBeGreaterThanOrEqual(30);
+  expect(viewport.height - peek.y).toBeGreaterThanOrEqual(40);
+
+  // 悬停后完整滑出，贴住屏幕边缘，不再被裁切。
+  await fab.hover();
   await expect
     .poll(async () => {
-      const moved = await fab.boundingBox();
-      if (!moved) return false;
-      return moved.x + moved.width <= viewport.width - 18 && moved.y + moved.height <= viewport.height - 18;
+      const revealed = await fab.boundingBox();
+      return revealed
+        ? revealed.x + revealed.width <= viewport.width + 3 &&
+            revealed.y + revealed.height <= viewport.height + 3
+        : false;
     })
     .toBe(true);
+
+  const revealed = await fab.boundingBox();
+  if (!revealed) throw new Error('缺少展开位置');
+  expect(revealed.x + revealed.width).toBeLessThanOrEqual(viewport.width + 3);
+  expect(revealed.y + revealed.height).toBeLessThanOrEqual(viewport.height + 3);
 });
 
-test('窗口缩小时按钮仍在可视区域内', async ({ page }) => {
+test('窗口缩小时按钮贴边探头，悬停后完整可见', async ({ page }) => {
   const fab = page.locator('.aiwt-fab-main');
   await expect(fab).toBeVisible();
 
   await page.setViewportSize({ width: 420, height: 360 });
+  await page.waitForTimeout(650);
 
+  const peek = await fab.boundingBox();
+  if (!peek) throw new Error('缺少按钮位置');
+  // 贴边后允许一部分藏在屏幕外，但必须留下足够可见、可悬停的区域。
+  expect(peek.x).toBeLessThan(420);
+  expect(peek.y).toBeLessThan(360);
+  expect(420 - peek.x).toBeGreaterThanOrEqual(30);
+  expect(360 - peek.y).toBeGreaterThanOrEqual(40);
+
+  await fab.hover();
   await expect
     .poll(async () => {
       const box = await fab.boundingBox();
-      if (!box) return null;
-      return box.x >= 0 && box.y >= 0 && box.x + box.width <= 420 && box.y + box.height <= 360;
+      if (!box) return false;
+      return box.x >= 0 && box.y >= 0 && box.x + box.width <= 423 && box.y + box.height <= 363;
     })
     .toBe(true);
 });

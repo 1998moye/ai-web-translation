@@ -15,7 +15,7 @@ const SIZE = { width: 52, height: 52 };
 describe('悬浮按钮位置', () => {
   it('默认位于右侧中下部', () => {
     const position = defaultButtonPosition({ width: 1200, height: 800 }, SIZE);
-    expect(position).toEqual({ left: 1128, top: 496 });
+    expect(position).toEqual({ left: 1116, top: 496 });
   });
 
   it('保存的位置越界时夹取回可视区域', () => {

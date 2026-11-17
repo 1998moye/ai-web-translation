@@ -11,6 +11,8 @@ export interface ElementSize {
 }
 
 export const BUTTON_EDGE_MARGIN = 20;
+/** 默认位置与边缘留出一点距离，只有拖到安全距才进入探头态。 */
+export const DEFAULT_BUTTON_EDGE_MARGIN = 32;
 /** 拖动过程中允许更贴近边缘，松手后弹簧回安全距离。 */
 export const DRAG_EDGE_MARGIN = 6;
 /** 默认位置：右侧中下部。 */
@@ -37,7 +39,7 @@ export function clampButtonPosition(
 export function defaultButtonPosition(viewport: ViewportSize, size: ElementSize): ButtonPosition {
   return clampButtonPosition(
     {
-      left: viewport.width - size.width - BUTTON_EDGE_MARGIN,
+      left: viewport.width - size.width - DEFAULT_BUTTON_EDGE_MARGIN,
       top: Math.round(viewport.height * DEFAULT_VERTICAL_RATIO),
     },
     viewport,

@@ -20,7 +20,7 @@ export interface FloatingButtonProps {
 }
 
 export function FloatingButton({ snapshot, positionStore, actions }: FloatingButtonProps) {
-  const { position, dragging, panelSide, panelVertical, buttonRef, handlers } = useFloatingButtonPosition({
+  const { position, dragging, panelSide, panelVertical, edges, buttonRef, handlers } = useFloatingButtonPosition({
     store: positionStore,
     onActivate: actions.onMainAction,
   });
@@ -46,15 +46,17 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
       data-aiwt-dragging={dragging ? 'true' : 'false'}
       data-aiwt-panel-side={panelSide}
       data-aiwt-panel-v={panelVertical}
+      data-aiwt-edge-x={edges.x ?? 'none'}
+      data-aiwt-edge-y={edges.y ?? 'none'}
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return;
         // 键盘用户按 Esc 关闭悬浮面板：移走焦点即可结束 focus-within 展开状态。
         (document.activeElement as HTMLElement | null)?.blur();
       }}
     >
-      {__AIWT_FAKE_ENGINE__ && snapshot.fakeEngine && <div className="aiwt-fab-badge">开发演示 · 模拟翻译</div>}
-
-      <button
+      <div className="aiwt-fab-peek">
+        {__AIWT_FAKE_ENGINE__ && snapshot.fakeEngine && <div className="aiwt-fab-badge">开发演示 · 模拟翻译</div>}
+        <button
         type="button"
         className="aiwt-fab-main"
         aria-label={snapshot.mainActionLabel}
@@ -187,6 +189,7 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
           <p className="aiwt-fab-hint">关闭一次只隐藏当前页面；永久关闭按完整域名保存，可在设置页恢复。</p>
         </footer>
         </div>
+      </div>
       </div>
     </div>
   );

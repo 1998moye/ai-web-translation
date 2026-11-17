@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import {
+  BUTTON_EDGE_MARGIN,
   clampButtonPosition,
   defaultButtonPosition,
   DRAG_EDGE_MARGIN,
@@ -25,6 +26,10 @@ export interface FloatingButtonPositionApi {
   dragging: boolean;
   panelSide: 'left' | 'right';
   panelVertical: 'up' | 'down';
+  edges: {
+    x: 'left' | 'right' | null;
+    y: 'top' | 'bottom' | null;
+  };
   buttonRef: RefObject<HTMLDivElement | null>;
   handlers: FloatingButtonHandlers;
 }
@@ -61,6 +66,10 @@ export function useFloatingButtonPosition({
   const positionRef = useRef<ButtonPosition>({ left: 0, top: 0 });
   const [position, setPositionState] = useState<ButtonPosition>(() => defaultButtonPosition(readViewport(win), FALLBACK_SIZE));
   const [dragging, setDragging] = useState(false);
+  const [layout, setLayout] = useState(() => ({
+    viewport: readViewport(win),
+    size: FALLBACK_SIZE,
+  }));
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -83,6 +92,7 @@ export function useFloatingButtonPosition({
     let active = true;
     const size = measure(buttonRef.current);
     const viewport = readViewport(win);
+    setLayout({ viewport, size });
 
     void store.read().then((saved) => {
       if (!active) return;
@@ -97,7 +107,9 @@ export function useFloatingButtonPosition({
   useEffect(() => {
     const handleResize = (): void => {
       const size = measure(buttonRef.current);
-      updatePosition(clampButtonPosition(positionRef.current, readViewport(win), size));
+      const viewport = readViewport(win);
+      setLayout({ viewport, size });
+      updatePosition(clampButtonPosition(positionRef.current, viewport, size));
     };
     win.addEventListener('resize', handleResize);
     return () => win.removeEventListener('resize', handleResize);
@@ -114,7 +126,6 @@ export function useFloatingButtonPosition({
       origin: positionRef.current,
       moved: false,
     };
-    setDragging(true);
     event.preventDefault();
   };
 
@@ -123,7 +134,15 @@ export function useFloatingButtonPosition({
     if (!drag || drag.pointerId !== event.pointerId) return;
 
     const delta = { left: event.clientX - drag.startX, top: event.clientY - drag.startY };
-    if (!drag.moved && isDragGesture(delta.left, delta.top)) drag.moved = true;
+    if (!drag.moved && isDragGesture(delta.left, delta.top)) {
+      drag.moved = true;
+      // 用当前视觉位置补偿探头/悬停偏移：拖动开始时不会先跳一下再跟手。
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (rect) {
+        drag.origin = { left: rect.left - delta.left, top: rect.top - delta.top };
+      }
+      setDragging(true);
+    }
     if (!drag.moved) return;
 
     updatePosition(moveButtonPosition(drag.origin, delta, readViewport(win), measure(buttonRef.current), DRAG_EDGE_MARGIN));
@@ -139,7 +158,7 @@ export function useFloatingButtonPosition({
     }
     if (drag.moved) {
       justDraggedRef.current = true;
-      // 松手后从贴边位置弹簧回安全间距。
+      // 松手后夹回安全距；若仍贴边，由探头态接管。
       updatePosition(clampButtonPosition(positionRef.current, readViewport(win), measure(buttonRef.current)));
       void store.write(positionRef.current);
     }
@@ -159,6 +178,20 @@ export function useFloatingButtonPosition({
     panelSide: panelSideFor(position.left, win.innerWidth),
     // 靠近顶部时面板向下展开，避免被视口上边缘裁切。
     panelVertical: position.top < 380 ? 'down' : 'up',
+    edges: {
+      x:
+        position.left <= BUTTON_EDGE_MARGIN + 0.5
+          ? 'left'
+          : position.left + layout.size.width >= layout.viewport.width - BUTTON_EDGE_MARGIN - 0.5
+            ? 'right'
+            : null,
+      y:
+        position.top <= BUTTON_EDGE_MARGIN + 0.5
+          ? 'top'
+          : position.top + layout.size.height >= layout.viewport.height - BUTTON_EDGE_MARGIN - 0.5
+            ? 'bottom'
+            : null,
+    },
     buttonRef,
     handlers: {
       onPointerDown,

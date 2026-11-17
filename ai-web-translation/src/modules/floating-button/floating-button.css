@@ -30,6 +30,59 @@
   transition: none;
 }
 
+/* 探头层：贴边时把整个组件推到屏幕外，只露出左侧/上侧的一小块。 */
+.aiwt-fab-peek {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  translate: var(--aiwt-peek-x, 0px) var(--aiwt-peek-y, 0px);
+  transition: translate 360ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 右侧贴边：藏在右侧屏幕外 24px，只露 32px；悬停时滑回贴边完整显示。 */
+.aiwt-fab[data-aiwt-edge-x='right'] .aiwt-fab-peek {
+  --aiwt-peek-x: 44px;
+  --aiwt-hover-x: 20px;
+}
+
+.aiwt-fab[data-aiwt-edge-x='left'] .aiwt-fab-peek {
+  --aiwt-peek-x: -44px;
+  --aiwt-hover-x: -20px;
+}
+
+/* 上下贴边只藏 12px，避免把眼睛和表情完全藏掉。 */
+.aiwt-fab[data-aiwt-edge-y='bottom'] .aiwt-fab-peek {
+  --aiwt-peek-y: 32px;
+  --aiwt-hover-y: 20px;
+}
+
+.aiwt-fab[data-aiwt-edge-y='top'] .aiwt-fab-peek {
+  --aiwt-peek-y: -32px;
+  --aiwt-hover-y: -20px;
+}
+
+.aiwt-fab:hover .aiwt-fab-peek,
+.aiwt-fab:focus-within .aiwt-fab-peek {
+  translate: var(--aiwt-hover-x, 0px) var(--aiwt-hover-y, 0px);
+  transition-duration: 420ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.aiwt-fab[data-aiwt-dragging='true'] .aiwt-fab-peek {
+  translate: 0 0;
+  transition: none;
+}
+
+@media (hover: none) {
+  .aiwt-fab-peek {
+    translate: 0 0 !important;
+  }
+
+  .aiwt-fab .aiwt-fab-main {
+    rotate: 0deg !important;
+  }
+}
+
 /* ---------- 悬浮按钮：一张会眨眼的小贴纸 ---------- */
 
 .aiwt-fab-main {
@@ -52,6 +105,7 @@
   user-select: none;
   transition:
     transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    rotate 240ms ease-out,
     box-shadow 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
     background-color 200ms ease-out;
 }
@@ -203,6 +257,14 @@
 .aiwt-fab[data-aiwt-dragging='true'] .aiwt-fab-eye {
   scale: 1.25;
   animation: none;
+}
+
+.aiwt-fab[data-aiwt-edge-x='right']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-main {
+  rotate: -7deg;
+}
+
+.aiwt-fab[data-aiwt-edge-x='left']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-main {
+  rotate: 7deg;
 }
 
 .aiwt-fab[data-aiwt-dragging='true'] .aiwt-fab-sign {
@@ -921,6 +983,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .aiwt-fab {
+    transition: none;
+  }
+
+  .aiwt-fab-peek {
     transition: none;
   }
 
