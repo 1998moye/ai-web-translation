@@ -1,7 +1,8 @@
 import path from 'node:path';
 import { test as base, chromium, type BrowserContext, type Page, type Worker } from '@playwright/test';
 
-export const EXTENSION_PATH = path.resolve('.output-fake/chrome-mv3');
+/** 可通过 AIWT_EXTENSION_PATH 指向生产构建：划词与真实 Engine 的链路需要生产装配。 */
+export const EXTENSION_PATH = path.resolve(process.env.AIWT_EXTENSION_PATH ?? '.output-fake/chrome-mv3');
 
 export interface ExtensionWorkerFixtures {
   extensionContext: BrowserContext;

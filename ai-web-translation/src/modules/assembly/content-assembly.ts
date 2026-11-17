@@ -3,14 +3,14 @@ import type { ButtonPositionStore } from '../floating-button/button-position-sto
 import { StoredButtonPosition } from '../floating-button/button-position-store';
 import { pingBackground } from '../messaging/ping-background';
 import { requestOpenOptions } from '../messaging/open-options';
+import { MessagingProfileCatalog } from '../messaging/profile-catalog-transport';
+import { createMessagingTranslationEngine } from '../messaging/translation-transport';
 import { PageTranslationController } from '../page-translation/page-translation-controller';
+import { createDomSelectionSource } from '../selection-translation/selection-source';
+import { SelectionTranslationController } from '../selection-translation/selection-translation-controller';
 import { StoredSitePreferences } from '../site-preferences/site-preferences';
 import { FakeTranslationEngine } from '../translation-fake/fake-translation-engine';
 import { createFakeProfileCatalog } from '../translation-fake/fake-profile-catalog';
-import {
-  createUnavailableProfileCatalog,
-  createUnavailableTranslationEngine,
-} from '../translation-fake/unavailable-translation';
 
 export interface ContentAssemblyOptions {
   doc?: Document;
@@ -26,6 +26,7 @@ export interface ContentAssemblyOptions {
 
 export interface ContentAssembly {
   controller: PageTranslationController;
+  selection: SelectionTranslationController;
   positionStore: ButtonPositionStore;
   dispose(): void;
 }
@@ -40,8 +41,8 @@ export function createContentAssembly(options: ContentAssemblyOptions = {}): Con
   const storage = options.storage ?? createChromeStorage();
   const hostname = options.hostname ?? doc.location?.hostname ?? '';
 
-  const engine = useFakeEngine ? createDemoEngine() : createUnavailableTranslationEngine();
-  const profiles = useFakeEngine ? createFakeProfileCatalog() : createUnavailableProfileCatalog();
+  const engine = useFakeEngine ? createDemoEngine() : createMessagingTranslationEngine();
+  const profiles = useFakeEngine ? createFakeProfileCatalog() : new MessagingProfileCatalog();
   const preferences = new StoredSitePreferences(storage);
   const positionStore: ButtonPositionStore = new StoredButtonPosition(storage);
 
@@ -61,10 +62,23 @@ export function createContentAssembly(options: ContentAssemblyOptions = {}): Con
     .then((health) => controller.setBackgroundConnected(health.ok))
     .catch(() => controller.setBackgroundConnected(false));
 
+  // 划词翻译：选区识别与译文气泡，与整页翻译共用同一个 Engine 与 Catalog。
+  const selection = new SelectionTranslationController({
+    engine,
+    profiles,
+    source: createDomSelectionSource(doc),
+    doc,
+  });
+  selection.mount();
+
   return {
     controller,
+    selection,
     positionStore,
-    dispose: () => controller.destroy(),
+    dispose: () => {
+      selection.destroy();
+      controller.destroy();
+    },
   };
 }
 

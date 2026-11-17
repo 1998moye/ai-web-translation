@@ -3,7 +3,9 @@ import { createShadowRootUi } from 'wxt/utils/content-script-ui/shadow-root';
 import { createRoot } from 'react-dom/client';
 import { createContentAssembly } from '@/modules/assembly/content-assembly';
 import { ContentShell } from '@/modules/content-shell/content-shell';
+import { SelectionLayer } from '@/modules/selection-translation/selection-layer';
 import '@/modules/floating-button/floating-button.css';
+import '@/modules/selection-translation/selection-translation.css';
 
 export default defineContentScript({
   matches: ['http://*/*', 'https://*/*'],
@@ -19,8 +21,14 @@ export default defineContentScript({
       anchor: 'body',
       onMount: (container) => {
         const root = createRoot(container);
-        // 划词翻译浮层由「配置与划词翻译」实现在这里装配，共用同一个 Shadow DOM。
-        root.render(<ContentShell controller={assembly.controller} positionStore={assembly.positionStore} />);
+        // 划词翻译浮层与悬浮按钮共用同一个 Shadow DOM 容器。
+        root.render(
+          <ContentShell
+            controller={assembly.controller}
+            positionStore={assembly.positionStore}
+            selectionLayer={<SelectionLayer controller={assembly.selection} />}
+          />,
+        );
         return root;
       },
       onRemove: (root) => root?.unmount(),
