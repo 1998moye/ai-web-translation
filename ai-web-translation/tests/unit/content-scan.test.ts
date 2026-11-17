@@ -113,4 +113,12 @@ describe('scanTranslatableTargets', () => {
     // 数字被占位标记保护，渲染时还原成原文。
     expect(interfaces).toEqual(['Watch ⟦o1⟧', 'Documentation']);
   });
+
+  it('只含数字与屏幕阅读器文本的徽章不算正文', () => {
+    setPage(
+      '<div><span class="badge"><span style="position: absolute; width: 1px; height: 1px">reputation score</span>21</span></div>',
+    );
+
+    expect(scanTranslatableTargets(document)).toHaveLength(0);
+  });
 });

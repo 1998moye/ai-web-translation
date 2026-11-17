@@ -85,11 +85,33 @@ export function isHiddenElement(element: Element): boolean {
       if (computed.display === 'none' || computed.visibility === 'hidden' || computed.visibility === 'collapse') {
         return true;
       }
+      if (isVisuallyHidden(computed)) return true;
     } catch {
       return false;
     }
   }
   return false;
+}
+
+/**
+ * 无障碍用的「仅屏幕阅读器可见」文本：绝对定位并裁剪到 1px 左右。
+ *
+ * 例如徽章里的 reputation score。这类文字用户看不见，却会被算进所在容器的
+ * 文字里，让一个纯数字徽章变成翻译单元，于是在旁边多出一份译文。
+ */
+function isVisuallyHidden(computed: CSSStyleDeclaration): boolean {
+  const position = computed.getPropertyValue('position');
+  if (position !== 'absolute' && position !== 'fixed') return false;
+
+  const width = Number.parseFloat(computed.getPropertyValue('width'));
+  const height = Number.parseFloat(computed.getPropertyValue('height'));
+  if (Number.isFinite(width) && Number.isFinite(height) && width <= 1 && height <= 1) return true;
+
+  const clip = computed.getPropertyValue('clip');
+  if (clip && clip !== 'auto') return true;
+
+  const clipPath = computed.getPropertyValue('clip-path');
+  return Boolean(clipPath && clipPath.includes('inset(50%)'));
 }
 
 function shouldSkipElement(element: Element): boolean {
