@@ -24,3 +24,8 @@
 - 只提交英文单元：含中日韩字符、明显非英文虚词（法/德/西等）、纯数字与符号都不产生请求；语言识别结果同时用于按网站自动翻译判断。
 - 行内代码以占位标记代替，代码内容不进入请求；翻译后按标记还原为 `code`，链接/强调还原为 `a`/`em`/`strong`；模型输出只走 `textContent` 与白名单元素，`script`/`img` 等不会变成可执行节点。
 - 验收：`tests/unit/inline-format.test.ts`（13 用例，含未知/不配对/错序标记回退纯文本、HTML 注入防护）、`tests/unit/content-scan.test.ts`（11 用例）、`tests/unit/language.test.ts`（11 用例）、`tests/e2e/page-translation.spec.ts`（中文/法语段落不翻译、代码保持、表单输入不变）。
+
+### 2026-11-17 复核补丁
+
+- 修复隐藏容器（如 `display:none` 折叠面板）内的英文仍被提交的问题：优先使用 `checkVisibility`，其他环境逐层检查祖先的 display/visibility/hidden。
+- 补充会话级测试，确认隐藏内容不进入请求、可见内容照常翻译。
