@@ -126,6 +126,44 @@ test('代码内容不进入翻译请求，行内代码也不会被提交', async
   await expect(bubble).not.toContainText('npm install');
 });
 
+test('长选区拆成多个单元，译文按原文顺序逐条显示', async ({ page, extensionId }) => {
+  await saveDefaultProfile(page, extensionId);
+  await page.goto('/long.html');
+
+  await page.locator('#long').selectText();
+  await page.locator('.aiwt-selection-icon').click();
+
+  const bubble = page.locator('.aiwt-selection-bubble');
+  await expect(bubble).toHaveAttribute('data-aiwt-status', 'success');
+
+  const units = bubble.locator('.aiwt-selection-units li');
+  await expect(units).toHaveCount(3);
+  await expect(units.nth(0)).toContainText('Reading long form documentation');
+  await expect(units.nth(1)).toContainText('A reader can consume');
+  await expect(units.nth(2)).toContainText('Partial failures keep');
+});
+
+test('部分单元缺失译文时成功结果仍然可见', async ({ page, extensionId }) => {
+  await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await page.getByRole('button', { name: '新建配置' }).click();
+  await page.getByLabel('配置名称').fill('部分失败服务');
+  await page.getByLabel('模型名').fill('mock-model');
+  await page.getByLabel('请求地址').fill('http://127.0.0.1:4321/mock/chat/partial');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+
+  await page.goto('/long.html');
+  await page.locator('#long').selectText();
+  await page.locator('.aiwt-selection-icon').click();
+
+  const bubble = page.locator('.aiwt-selection-bubble');
+  await expect(bubble).toHaveAttribute('data-aiwt-status', 'partial');
+
+  const units = bubble.locator('.aiwt-selection-units li');
+  await expect(units.nth(0)).toHaveAttribute('data-aiwt-unit-status', 'error');
+  await expect(units.nth(1)).toHaveAttribute('data-aiwt-unit-status', 'done');
+  await expect(units.nth(1)).toContainText('模拟译文：');
+});
+
 test('翻译服务认证失败时气泡显示脱敏错误并保留原文', async ({ page, extensionId }) => {
   await page.goto(`chrome-extension://${extensionId}/options.html`);
   await page.getByRole('button', { name: '新建配置' }).click();

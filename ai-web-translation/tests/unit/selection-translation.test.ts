@@ -6,6 +6,7 @@ import {
   type SelectionSource,
 } from '@/modules/selection-translation/selection-translation-controller';
 import { createFakeProfileCatalog } from '@/modules/translation-fake/fake-profile-catalog';
+import type { TranslationContext } from '@/modules/translation-contract/types';
 import { complete, createManualEngine, fail, succeed } from './helpers/manual-engine';
 
 const ENGLISH_TEXT = 'Selecting this English sentence should offer a translation icon.';
@@ -14,7 +15,15 @@ const API_KEY_LEAK = 'sk-live-secret-abcd1234';
 
 interface FakeSource {
   source: SelectionSource;
-  set(value: { text: string; rect?: SelectionRect; rawText?: string; codeExcluded?: boolean } | null): void;
+  set(
+    value: {
+      text: string;
+      rect?: SelectionRect;
+      rawText?: string;
+      codeExcluded?: boolean;
+      context?: TranslationContext;
+    } | null,
+  ): void;
 }
 
 function createSource(): FakeSource {
@@ -28,6 +37,7 @@ function createSource(): FakeSource {
             rawText: value.rawText ?? value.text,
             rect: value.rect ?? RECT,
             codeExcluded: value.codeExcluded ?? false,
+            ...(value.context ? { context: value.context } : {}),
           }
         : null;
     },
@@ -331,6 +341,102 @@ describe('划词切换配置', () => {
     expect(serialized).not.toContain(API_KEY_LEAK);
     expect(serialized).not.toContain('api.example.com');
     expect(serialized).not.toContain('Authorization');
+  });
+});
+
+describe('长选区、上下文与乱序返回', () => {
+  it('多句选区拆成多个单元，气泡按原文顺序展示', async () => {
+    const { controller, manual, set } = setup();
+    set({ text: 'First English sentence. Second English sentence. Third English sentence.' });
+    controller.refresh();
+
+    const pending = controller.translateSelection();
+    await flush();
+
+    expect(manual.requests[0]?.units.map((unit) => unit.text)).toEqual([
+      'First English sentence.',
+      'Second English sentence.',
+      'Third English sentence.',
+    ]);
+
+    for (let index = 0; index < 3; index += 1) succeed(manual, 0, index, `译文${index}`);
+    complete(manual, 0);
+    await pending;
+
+    expect(bubbleOf(controller).units.map((unit) => unit.sourceText)).toEqual([
+      'First English sentence.',
+      'Second English sentence.',
+      'Third English sentence.',
+    ]);
+  });
+
+  it('批次乱序返回时译文仍按原选区顺序呈现', async () => {
+    const { controller, manual, set } = setup();
+    set({ text: 'First English sentence. Second English sentence.' });
+    controller.refresh();
+
+    const pending = controller.translateSelection();
+    await flush();
+
+    // 后一句先返回，前一句后返回。
+    succeed(manual, 0, 1, '第二句译文');
+    succeed(manual, 0, 0, '第一句译文');
+    complete(manual, 0);
+    await pending;
+
+    const bubble = bubbleOf(controller);
+    expect(bubble.status).toBe('success');
+    expect(bubble.units.map((unit) => unit.translation)).toEqual(['第一句译文', '第二句译文']);
+  });
+
+  it('长选区附带只读上下文，短选区不附加上下文', async () => {
+    const { controller, manual, set } = setup();
+    const context: TranslationContext = {
+      pageTitle: 'Example Domain',
+      sectionTitle: 'Overview',
+      previousText: 'The paragraph before the selection.',
+    };
+
+    set({ text: 'Short English text.', context });
+    controller.refresh();
+    const shortRun = controller.translateSelection();
+    await flush();
+    expect(manual.requests[0]?.context).toBeUndefined();
+    complete(manual, 0);
+    await shortRun;
+
+    controller.closeBubble();
+    set({
+      text: `${'A long English sentence that keeps going and going. '.repeat(4)}Short English text.`,
+      context,
+    });
+    controller.refresh();
+    const longRun = controller.translateSelection();
+    await flush();
+    expect(manual.requests[1]?.context).toEqual(context);
+    complete(manual, 1);
+    await longRun;
+  });
+
+  it('缺失译文的单元保留原文并标记失败，其他单元不回滚', async () => {
+    const { controller, manual, set } = setup();
+    set({ text: 'First English sentence. Second English sentence. Third English sentence.' });
+    controller.refresh();
+
+    const pending = controller.translateSelection();
+    await flush();
+
+    succeed(manual, 0, 0, '第一句');
+    fail(manual, 0, 2);
+    complete(manual, 0);
+    await pending;
+
+    const bubble = bubbleOf(controller);
+    expect(bubble.status).toBe('partial');
+    expect(bubble.units[0]?.translation).toBe('第一句');
+    expect(bubble.units[1]?.error).toContain('没有返回');
+    expect(bubble.units[1]?.sourceText).toBe('Second English sentence.');
+    expect(bubble.units[2]?.error).toContain('模拟失败');
   });
 });
 

@@ -1,4 +1,5 @@
 import type { SelectionReading, SelectionSource } from './selection-translation-controller';
+import { buildSelectionContext } from './selection-context';
 
 /** 代码内容：代码块、行内代码、命令示例等默认不属于翻译范围。 */
 const CODE_SELECTOR = 'pre, code, kbd, samp, var, tt';
@@ -22,8 +23,14 @@ export function createDomSelectionSource(doc: Document = document): SelectionSou
       const rect = range.getBoundingClientRect();
       if (!rect || (rect.width === 0 && rect.height === 0)) return null;
 
+      const container = range.commonAncestorContainer;
+      const anchor =
+        container.nodeType === Node.ELEMENT_NODE ? (container as Element) : container.parentElement;
+      const context = buildSelectionContext(doc, anchor);
+
       return {
         ...readTranslatableText(range, rawText),
+        ...(context ? { context } : {}),
         rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
       };
     },

@@ -36,7 +36,7 @@ describe('extractTranslatableSegments', () => {
     ]);
   });
 
-  it('换行分隔的段落分别处理并折叠空白', () => {
+  it('换行与缩进被折叠成空格，句子仍分别处理', () => {
     expect(extractTranslatableSegments('  Open   the settings page. \n\n  Save   your changes. ')).toEqual([
       'Open the settings page.',
       'Save your changes.',

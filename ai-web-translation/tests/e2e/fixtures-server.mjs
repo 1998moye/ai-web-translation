@@ -68,10 +68,12 @@ async function handleMockChat(scenario, request, response) {
   if (scenario === 'slow') await new Promise((resolve) => setTimeout(resolve, 1200));
 
   // 默认场景：按请求单元逐个返回约定结构的译文。
-  const prefix = scenario === 'alt' ? '备选译文：' : '模拟译文：';
   const units = readUnits(body);
+  const prefix = scenario === 'alt' ? '备选译文：' : '模拟译文：';
+  // partial 场景故意漏掉第一个单元的译文，用于验证部分失败。
+  const translated = scenario === 'partial' ? units.slice(1) : units;
   const payload = {
-    translations: units.map((unit) => ({ id: unit.id, text: `${prefix}${unit.text}` })),
+    translations: translated.map((unit) => ({ id: unit.id, text: `${prefix}${unit.text}` })),
   };
 
   response.writeHead(200, { 'content-type': 'application/json' });

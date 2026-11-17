@@ -5,7 +5,7 @@ import type {
   TranslationProfileSummary,
 } from '../translation-contract/profile-catalog';
 import type { TranslationEngine } from '../translation-contract/translation-engine';
-import type { TranslationUnit } from '../translation-contract/types';
+import type { TranslationContext, TranslationUnit } from '../translation-contract/types';
 import { classifyText } from '../language/language';
 import { containsCjk, extractTranslatableSegments } from './translation-segments';
 
@@ -31,6 +31,8 @@ export interface SelectionReading {
   rect: SelectionRect;
   /** 选区是否包含或整个落在代码内容里。 */
   codeExcluded: boolean;
+  /** 只读上下文：页面标题、小节标题与前一段原文。 */
+  context?: TranslationContext;
 }
 
 /** 选区来源：测试可以完全控制文本、位置与代码排除结果。 */
@@ -79,12 +81,15 @@ export interface SelectionTranslationControllerOptions {
 }
 
 const ICON_OFFSET = 8;
+/** 短选区和界面文本不附加上下文，避免无关内容稀释提示词。 */
+const CONTEXT_MIN_CHARS = 120;
 const EMPTY_SNAPSHOT: SelectionControllerSnapshot = { iconPosition: null, iconIssue: null, bubble: null };
 
 interface FrozenSelection {
   rawText: string;
   segments: readonly string[];
   position: SelectionPoint;
+  context?: TranslationContext;
 }
 
 /**
@@ -187,7 +192,8 @@ export class SelectionTranslationController {
     const position = bubblePositionOf(reading.rect);
     const segments = this.segments;
     const generation = ++this.generation;
-    this.frozen = { rawText, segments, position };
+    const context = wantsContext(rawText, segments) ? reading.context : undefined;
+    this.frozen = { rawText, segments, position, ...(context ? { context } : {}) };
 
     if (segments.length === 0) {
       // 不可翻译的选区不发起请求，只说明原因。
@@ -297,6 +303,7 @@ export class SelectionTranslationController {
         requestId: createRequestId(),
         profileId: input.profile.id,
         units,
+        ...(frozen.context ? { context: frozen.context } : {}),
       })) {
         if (input.generation !== this.generation) return;
 
@@ -381,8 +388,7 @@ export class SelectionTranslationController {
   }
 }
 
-function statusOfUnits(units: readonly SelectionBubbleUnit[]): SelectionBubbleStatus {
-  const pending = units.filter((unit) => unit.translation === undefined && unit.error === undefined).length;
+function statusOfUnits(units: readonly SelectionBubbleUnit[]): SelectionBubbleStatus {  const pending = units.filter((unit) => unit.translation === undefined && unit.error === undefined).length;
   if (pending > 0) return 'loading';
 
   const failed = units.filter((unit) => unit.error !== undefined).length;
@@ -390,8 +396,7 @@ function statusOfUnits(units: readonly SelectionBubbleUnit[]): SelectionBubbleSt
   return failed === units.length ? 'error' : 'partial';
 }
 
-function describeSelectionIssue(reading: SelectionReading, rawText: string): string {
-  if (reading.codeExcluded && !reading.text.trim()) {
+function describeSelectionIssue(reading: SelectionReading, rawText: string): string {  if (reading.codeExcluded && !reading.text.trim()) {
     return '选中的是代码内容，代码块、命令和行内代码默认不翻译。';
   }
   if (containsCjk(rawText)) {
@@ -405,6 +410,11 @@ function describeSelectionIssue(reading: SelectionReading, rawText: string): str
 
 function iconPositionOf(rect: SelectionRect): SelectionPoint {
   return { left: rect.left + rect.width / 2, top: rect.top + rect.height + ICON_OFFSET };
+}
+
+/** 长选区或多句选区才需要上下文；短文本与界面文本不附加无关内容。 */
+function wantsContext(rawText: string, segments: readonly string[]): boolean {
+  return rawText.length >= CONTEXT_MIN_CHARS || segments.length > 1;
 }
 
 function bubblePositionOf(rect: SelectionRect): SelectionPoint {

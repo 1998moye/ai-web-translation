@@ -1,11 +1,12 @@
 import { createSanitizedError, sanitizeError } from '../translation-contract/sanitized-error';
 import type { StartTranslationRequest, TranslationEngine } from '../translation-contract/translation-engine';
-import type { SanitizedTranslationError, TranslationEvent } from '../translation-contract/types';
+import type { SanitizedTranslationError, TranslationEvent, TranslationUnit } from '../translation-contract/types';
 import { buildChatCompletionRequest } from '../translation-chat-completions/request';
 import { extractCompletionContent, parseTranslationResult } from '../translation-chat-completions/response';
 import type { HttpAdapter } from '../translation-chat-completions/http-adapter';
 import type { TranslationProfileRepository } from '../translation-profile/profile-store';
 import type { TranslationPromptRepository } from '../translation-prompt/prompt-store';
+import { groupUnitsIntoBatches } from './translation-batches';
 
 export interface ChatCompletionsEngineDeps {
   http: HttpAdapter;
@@ -46,26 +47,56 @@ export class ChatCompletionsTranslationEngine implements TranslationEngine {
         return;
       }
 
+      // 同一会话的所有批次共用同一份配置与提示词。
       const prompt = await this.deps.prompts.read();
+
+      for (const batch of groupUnitsIntoBatches(request.units)) {
+        if (controller.signal.aborted) return;
+        yield* this.translateBatch({ request, batch, profile, prompt, signal: controller.signal });
+      }
+
+      yield completed(request);
+    } catch (error) {
+      // 取消后的失败不再上报：调用方已经丢弃了这个会话。
+      if (controller.signal.aborted) return;
+
+      yield* failAll(request, sanitizeError(error));
+      yield completed(request);
+    } finally {
+      this.sessions.delete(request.sessionId);
+    }
+  }
+
+  /** 单个批次的失败只影响该批次的单元，已经成功的批次保持可用。 */
+  private async *translateBatch(input: {
+    request: StartTranslationRequest;
+    batch: readonly TranslationUnit[];
+    profile: Parameters<typeof buildChatCompletionRequest>[0]['profile'];
+    prompt: string;
+    signal: AbortSignal;
+  }): AsyncGenerator<TranslationEvent> {
+    const { request, batch, profile, prompt, signal } = input;
+
+    try {
       const outcome = await this.deps.http.send({
         ...buildChatCompletionRequest({
           profile,
           prompt,
-          units: request.units,
+          units: batch,
           ...(request.context ? { context: request.context } : {}),
         }),
-        signal: controller.signal,
+        signal,
       });
 
-      if (controller.signal.aborted) return;
+      if (signal.aborted) return;
 
       const content = extractCompletionContent(outcome);
       const parsed = parseTranslationResult(
         content,
-        request.units.map((unit) => unit.id),
+        batch.map((unit) => unit.id),
       );
 
-      for (const unit of request.units) {
+      for (const unit of batch) {
         const text = parsed.translations.get(unit.id);
         if (text === undefined) {
           yield failed(request, unit.id, createSanitizedError('response-invalid'));
@@ -79,16 +110,11 @@ export class ChatCompletionsTranslationEngine implements TranslationEngine {
           text,
         };
       }
-
-      yield completed(request);
     } catch (error) {
-      // 取消后的失败不再上报：调用方已经丢弃了这个会话。
-      if (controller.signal.aborted) return;
+      if (signal.aborted) return;
 
-      yield* failAll(request, sanitizeError(error));
-      yield completed(request);
-    } finally {
-      this.sessions.delete(request.sessionId);
+      const sanitized = sanitizeError(error);
+      for (const unit of batch) yield failed(request, unit.id, sanitized);
     }
   }
 }
