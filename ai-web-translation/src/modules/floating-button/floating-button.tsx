@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import type { PageControllerSnapshot } from '../page-translation/page-translation-controller';
 import type { ButtonPositionStore } from './button-position-store';
 import { useFloatingButtonPosition } from './use-floating-button-position';
@@ -20,10 +22,12 @@ export interface FloatingButtonProps {
 }
 
 export function FloatingButton({ snapshot, positionStore, actions }: FloatingButtonProps) {
-  const { position, dragging, panelSide, panelVertical, edges, buttonRef, handlers } = useFloatingButtonPosition({
-    store: positionStore,
-    onActivate: actions.onMainAction,
-  });
+  const { position, dragging, panelSide, panelVertical, edges, hoverOffset, buttonRef, handlers } =
+    useFloatingButtonPosition({
+      store: positionStore,
+      onActivate: actions.onMainAction,
+    });
+  const [revealed, setRevealed] = useState(false);
 
   const progress = snapshot.progress;
   const done = progress ? progress.succeeded + progress.failed : 0;
@@ -37,17 +41,31 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
         ? '扩展后台已连接'
         : '扩展后台未连接';
 
+  const style = {
+    translate: `${position.left}px ${position.top}px`,
+    '--aiwt-hover-x': `${hoverOffset.left}px`,
+    '--aiwt-hover-y': `${hoverOffset.top}px`,
+  } as CSSProperties;
+
   return (
     <div
       ref={buttonRef}
       className="aiwt-fab"
-      style={{ translate: `${position.left}px ${position.top}px` }}
+      style={style}
       data-aiwt-phase={snapshot.phase}
       data-aiwt-dragging={dragging ? 'true' : 'false'}
+      data-aiwt-revealed={revealed ? 'true' : 'false'}
       data-aiwt-panel-side={panelSide}
       data-aiwt-panel-v={panelVertical}
       data-aiwt-edge-x={edges.x ?? 'none'}
       data-aiwt-edge-y={edges.y ?? 'none'}
+      onPointerEnter={() => setRevealed(true)}
+      onPointerLeave={() => setRevealed(false)}
+      onFocus={() => setRevealed(true)}
+      onBlur={(event) => {
+        const next = event.relatedTarget;
+        if (!(next instanceof Node) || !event.currentTarget.contains(next)) setRevealed(false);
+      }}
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return;
         // 键盘用户按 Esc 关闭悬浮面板：移走焦点即可结束 focus-within 展开状态。
@@ -71,10 +89,18 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
           <span className="aiwt-fab-cheek aiwt-fab-cheek-right" />
           <span className="aiwt-fab-mouth" />
         </span>
+        {snapshot.phase === 'translating' && (
+          <span className="aiwt-fab-work" aria-hidden="true">
+            <span className="aiwt-fab-paper" />
+            <span className="aiwt-fab-writing">
+              <span className="aiwt-fab-pencil" />
+              <span className="aiwt-fab-hand" />
+            </span>
+          </span>
+        )}
         <span className="aiwt-fab-sign" key={snapshot.phase} aria-hidden="true">
           {snapshot.glyph}
         </span>
-        {snapshot.phase === 'translating' && <span className="aiwt-fab-orbit" aria-hidden="true" />}
         {snapshot.phase === 'partial-failure' && (
           <span className="aiwt-fab-alert" aria-hidden="true">
             !

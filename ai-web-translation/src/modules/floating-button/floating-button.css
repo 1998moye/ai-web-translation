@@ -39,28 +39,25 @@
   transition: translate 360ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 右侧贴边：藏在右侧屏幕外 24px，只露 32px；悬停时滑回贴边完整显示。 */
+/* 右侧贴边：藏在右侧屏幕外 20px，只露约 36px；悬停时滑回贴边完整显示。 */
 .aiwt-fab[data-aiwt-edge-x='right'] .aiwt-fab-peek {
-  --aiwt-peek-x: 44px;
-  --aiwt-hover-x: 20px;
+  --aiwt-peek-x: 40px;
 }
 
 .aiwt-fab[data-aiwt-edge-x='left'] .aiwt-fab-peek {
-  --aiwt-peek-x: -44px;
-  --aiwt-hover-x: -20px;
+  --aiwt-peek-x: -40px;
 }
 
 /* 上下贴边只藏 12px，避免把眼睛和表情完全藏掉。 */
 .aiwt-fab[data-aiwt-edge-y='bottom'] .aiwt-fab-peek {
   --aiwt-peek-y: 32px;
-  --aiwt-hover-y: 20px;
 }
 
 .aiwt-fab[data-aiwt-edge-y='top'] .aiwt-fab-peek {
   --aiwt-peek-y: -32px;
-  --aiwt-hover-y: -20px;
 }
 
+.aiwt-fab[data-aiwt-revealed='true'] .aiwt-fab-peek,
 .aiwt-fab:hover .aiwt-fab-peek,
 .aiwt-fab:focus-within .aiwt-fab-peek {
   translate: var(--aiwt-hover-x, 0px) var(--aiwt-hover-y, 0px);
@@ -143,6 +140,7 @@
   border-radius: 50%;
   background: var(--aiwt-ink);
   transform-origin: center;
+  transition: opacity 180ms ease-out;
 }
 
 .aiwt-fab-eye-left {
@@ -260,23 +258,88 @@
 }
 
 .aiwt-fab[data-aiwt-edge-x='right']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-main {
-  rotate: -7deg;
+  rotate: -12deg;
 }
 
 .aiwt-fab[data-aiwt-edge-x='left']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-main {
-  rotate: 7deg;
+  rotate: 12deg;
+}
+
+/* 探头时只留靠页面一侧的眼睛，像歪着头从屏幕后面偷看。 */
+.aiwt-fab[data-aiwt-edge-x='right']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye-right,
+.aiwt-fab[data-aiwt-edge-x='left']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye-left {
+  opacity: 0;
 }
 
 .aiwt-fab[data-aiwt-dragging='true'] .aiwt-fab-sign {
   rotate: -12deg;
 }
 
-.aiwt-fab-orbit {
+/* 翻译中：角色拿着铅笔在小纸片上写字，不再用外圈光环。 */
+.aiwt-fab-work {
   position: absolute;
-  inset: -7px;
-  border: 2.5px dashed var(--aiwt-teal);
-  border-radius: 50%;
+  inset: 0;
+  z-index: 3;
   pointer-events: none;
+}
+
+.aiwt-fab-paper {
+  position: absolute;
+  left: 4px;
+  bottom: 3px;
+  width: 15px;
+  height: 11px;
+  border: 1.5px solid var(--aiwt-ink);
+  border-radius: 3px;
+  background: #fffdf7;
+  box-shadow: 1px 1px 0 var(--aiwt-ink);
+  rotate: -8deg;
+}
+
+.aiwt-fab-paper::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 3px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: var(--aiwt-ink);
+  opacity: 0.42;
+  box-shadow: 0 3px 0 rgba(45, 42, 38, 0.28);
+}
+
+.aiwt-fab-writing {
+  position: absolute;
+  inset: 0;
+  transform-origin: 16px 38px;
+}
+
+.aiwt-fab-pencil {
+  position: absolute;
+  left: 15px;
+  bottom: 5px;
+  width: 4px;
+  height: 15px;
+  border: 1.5px solid var(--aiwt-ink);
+  border-radius: 2px;
+  background: linear-gradient(to top, var(--aiwt-ink) 0 3px, var(--aiwt-coral) 3px 100%);
+  box-shadow: 1px 1px 0 var(--aiwt-ink);
+  transform-origin: 50% 100%;
+  rotate: -28deg;
+}
+
+.aiwt-fab-hand {
+  position: absolute;
+  left: 13px;
+  bottom: 13px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--aiwt-ink);
+  border-radius: 50%;
+  background: var(--aiwt-butter);
+  box-shadow: 1px 1px 0 var(--aiwt-ink);
+  z-index: 2;
 }
 
 .aiwt-fab-alert {
@@ -400,6 +463,7 @@
   bottom: auto;
 }
 
+.aiwt-fab[data-aiwt-revealed='true'] .aiwt-fab-panel,
 .aiwt-fab:hover .aiwt-fab-panel,
 .aiwt-fab:focus-within .aiwt-fab-panel {
   opacity: 1;
@@ -548,7 +612,7 @@
 
 .aiwt-fab-action-primary {
   background: var(--aiwt-coral);
-  color: #fffdf7;
+  color: var(--aiwt-ink);
 }
 
 .aiwt-fab-action-primary:hover {
@@ -709,6 +773,22 @@
   }
 }
 
+@keyframes aiwt-peek-blink {
+  0%,
+  88%,
+  100% {
+    transform: scaleY(1);
+  }
+  91%,
+  95% {
+    transform: scaleY(0.12);
+  }
+  93%,
+  97% {
+    transform: scaleY(1);
+  }
+}
+
 @keyframes aiwt-sign-pop {
   0% {
     opacity: 0;
@@ -742,9 +822,62 @@
   }
 }
 
-@keyframes aiwt-spin {
-  to {
-    transform: rotate(360deg);
+@keyframes aiwt-write {
+  0%,
+  100% {
+    rotate: -1deg;
+    translate: 0 0;
+  }
+  30% {
+    rotate: 2.5deg;
+    translate: 0.5px -0.5px;
+  }
+  60% {
+    rotate: -2deg;
+    translate: -0.5px 0.5px;
+  }
+  80% {
+    rotate: 1.5deg;
+    translate: 0.5px 0;
+  }
+}
+
+@keyframes aiwt-paper-wiggle {
+  0%,
+  100% {
+    rotate: -8deg;
+  }
+  50% {
+    rotate: -5deg;
+  }
+}
+
+@keyframes aiwt-sign-work {
+  0%,
+  100% {
+    rotate: -6deg;
+  }
+  40% {
+    rotate: -1deg;
+  }
+  70% {
+    rotate: -9deg;
+  }
+}
+
+@keyframes aiwt-face-shake {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+  25% {
+    translate: -1px 0;
+    rotate: -2deg;
+  }
+  75% {
+    translate: 1px 0;
+    rotate: 2deg;
   }
 }
 
@@ -818,14 +951,32 @@
     animation: aiwt-sign-swing 540ms ease-in-out;
   }
 
+  .aiwt-fab[data-aiwt-phase='translating'] .aiwt-fab-writing {
+    animation: aiwt-write 900ms ease-in-out infinite;
+  }
+
+  .aiwt-fab[data-aiwt-phase='translating'] .aiwt-fab-paper {
+    animation: aiwt-paper-wiggle 1200ms ease-in-out infinite;
+  }
+
+  .aiwt-fab[data-aiwt-phase='translating'] .aiwt-fab-sign {
+    animation: aiwt-sign-work 900ms ease-in-out infinite;
+  }
+
+  .aiwt-fab[data-aiwt-phase='partial-failure'] .aiwt-fab-face {
+    animation: aiwt-face-shake 460ms ease-in-out;
+  }
+
   /* 只在用户主动悬停时眨一次眼，避免常驻动画分散阅读注意力。 */
   .aiwt-fab[data-aiwt-phase='idle'] .aiwt-fab-main:hover .aiwt-fab-eye,
   .aiwt-fab[data-aiwt-phase='cancelled'] .aiwt-fab-main:hover .aiwt-fab-eye {
     animation: aiwt-blink 620ms ease-in-out;
   }
 
-  .aiwt-fab-orbit {
-    animation: aiwt-spin 1.2s linear infinite;
+  /* 探头时留一只眼睛，每隔几秒轻轻眨一下。 */
+  .aiwt-fab[data-aiwt-phase='idle'][data-aiwt-edge-x='right']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye-left,
+  .aiwt-fab[data-aiwt-phase='idle'][data-aiwt-edge-x='left']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye-right {
+    animation: aiwt-peek-blink 5.8s ease-in-out infinite;
   }
 
   .aiwt-fab-alert {
@@ -941,7 +1092,7 @@
 
   .aiwt-fab-action-primary {
     background: var(--aiwt-coral);
-    color: #fffdf7;
+    color: var(--aiwt-ink);
   }
 
   .aiwt-fab-action-primary:hover {

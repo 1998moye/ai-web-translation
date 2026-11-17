@@ -198,6 +198,11 @@ test('取消翻译后不再插入迟到译文', async ({ page, extensionId }) =>
   await page.locator('.aiwt-fab-main').click();
   await expect(page.locator('.aiwt-fab')).toHaveAttribute('data-aiwt-phase', 'translating');
 
+  // 翻译中展示角色写字的动画，不再用外圈光环。
+  await expect(page.locator('.aiwt-fab-work')).toBeVisible();
+  await expect(page.locator('.aiwt-fab-pencil')).toBeVisible();
+  await expect(page.locator('.aiwt-fab-orbit')).toHaveCount(0);
+
   await openFabPanel(page);
   await page.locator('.aiwt-fab-panel').getByRole('button', { name: '停止翻译' }).click();
   await expect(page.locator('.aiwt-fab')).toHaveAttribute('data-aiwt-phase', 'cancelled');

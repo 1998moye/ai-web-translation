@@ -30,6 +30,7 @@ export interface FloatingButtonPositionApi {
     x: 'left' | 'right' | null;
     y: 'top' | 'bottom' | null;
   };
+  hoverOffset: { left: number; top: number };
   buttonRef: RefObject<HTMLDivElement | null>;
   handlers: FloatingButtonHandlers;
 }
@@ -172,25 +173,40 @@ export function useFloatingButtonPosition({
     onActivate();
   };
 
+  const edgeX =
+    position.left <= BUTTON_EDGE_MARGIN + 0.5
+      ? 'left'
+      : position.left + layout.size.width >= layout.viewport.width - BUTTON_EDGE_MARGIN - 0.5
+        ? 'right'
+        : null;
+  const edgeY =
+    position.top <= BUTTON_EDGE_MARGIN + 0.5
+      ? 'top'
+      : position.top + layout.size.height >= layout.viewport.height - BUTTON_EDGE_MARGIN - 0.5
+        ? 'bottom'
+        : null;
+
   return {
     position,
     dragging,
     panelSide: panelSideFor(position.left, win.innerWidth),
     // 靠近顶部时面板向下展开，避免被视口上边缘裁切。
     panelVertical: position.top < 380 ? 'down' : 'up',
-    edges: {
-      x:
-        position.left <= BUTTON_EDGE_MARGIN + 0.5
-          ? 'left'
-          : position.left + layout.size.width >= layout.viewport.width - BUTTON_EDGE_MARGIN - 0.5
-            ? 'right'
-            : null,
-      y:
-        position.top <= BUTTON_EDGE_MARGIN + 0.5
-          ? 'top'
-          : position.top + layout.size.height >= layout.viewport.height - BUTTON_EDGE_MARGIN - 0.5
-            ? 'bottom'
-            : null,
+    edges: { x: edgeX, y: edgeY },
+    // 悬停/聚焦时把按钮完全推到视口内（贴边），不依赖固定偏移量。
+    hoverOffset: {
+      left:
+        edgeX === 'right'
+          ? layout.viewport.width - layout.size.width - position.left
+          : edgeX === 'left'
+            ? -position.left
+            : 0,
+      top:
+        edgeY === 'bottom'
+          ? layout.viewport.height - layout.size.height - position.top
+          : edgeY === 'top'
+            ? -position.top
+            : 0,
     },
     buttonRef,
     handlers: {
