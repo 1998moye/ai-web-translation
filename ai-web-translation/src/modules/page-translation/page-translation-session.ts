@@ -162,6 +162,24 @@ export class PageTranslationSession {
     this.emit();
   }
 
+  /** 在失败位置直接重试单个单元：只提交这一段，其他内容不动。 */
+  retryUnit(unitId: TranslationUnitId): void {
+    if (this.closed || !this.profileId) return;
+
+    const record = this.registry.get(unitId);
+    if (!record || record.phase !== 'failed') return;
+
+    this.runOwnMutation(() => {
+      record.rendered?.restore();
+      record.rendered = undefined;
+      record.error = undefined;
+      record.phase = 'pending';
+    });
+
+    this.dispatch([record]);
+    this.emit();
+  }
+
   /** 只重新提交失败单元，不重复提交未变化的成功单元。 */
   retryFailed(): void {
     if (this.closed || !this.profileId) return;
@@ -436,7 +454,9 @@ export class PageTranslationSession {
     this.runOwnMutation(() => {
       record.rendered?.restore();
       record.rendered =
-        record.kind === 'body' ? (renderFailureMarker(this.doc, record.element, record.id) ?? undefined) : undefined;
+        record.kind === 'body'
+          ? (renderFailureMarker(this.doc, record.element, record.id, () => this.retryUnit(record.id)) ?? undefined)
+          : undefined;
     });
 
     this.emit();

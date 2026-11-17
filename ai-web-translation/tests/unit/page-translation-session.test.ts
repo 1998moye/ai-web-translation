@@ -386,6 +386,52 @@ describe('PageTranslationSession 译文排版', () => {
     expect(session.getState().progress.succeeded).toBe(2);
   });
 
+  it('标题译文沿用原文的字重，但字号相对化，不照抄绝对像素', async () => {
+    setPage('<main><h2 style="font-size: 32px; font-weight: 700">Release notes</h2></main>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const block = document.querySelector('[data-aiwt="body-translation"]') as HTMLElement;
+    const style = block.getAttribute('style') ?? '';
+    expect(style).toContain('font-size: 0.9em');
+    expect(style).not.toContain('32px');
+    expect(style).toContain('font-weight: 700');
+  });
+
+  it('flex 容器里的译文放进原文内部，不会被挤成逐字竖排', async () => {
+    setPage(
+      '<div style="display: flex; gap: 8px"><p>Flex row paragraph text here.</p><span>Another element</span></div>',
+    );
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const container = document.querySelector('div');
+    // 新块成了 flex 项目就会被挤成一条竖排文字，因此放进元素内部。
+    expect([...(container?.children ?? [])].map((child) => child.tagName)).toEqual(['P', 'SPAN']);
+    expect(container?.querySelector('[data-aiwt="body-translation"]')).not.toBeNull();
+  });
+
+  it('表格译文的颜色与原文一致，只把字号调小', async () => {
+    setPage(
+      '<table><tbody><tr><td><span style="color: rgb(87, 96, 106)">Update the commit message</span></td></tr></tbody></table>',
+    );
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const style = document.querySelector('td [data-aiwt="body-translation"]')?.getAttribute('style') ?? '';
+    expect(style).toContain('color: rgb(87, 96, 106)');
+    expect(style).toContain('font-size: 0.82em');
+  });
+
   it('表格里的译文比正文更小，避免撑开行高与列宽', async () => {
     setPage(
       '<main><p>Regular paragraph outside the table.</p>' +
@@ -401,7 +447,9 @@ describe('PageTranslationSession 译文排版', () => {
     const cellBlock = document.querySelector('td [data-aiwt="body-translation"]') as HTMLElement;
 
     expect(cellBlock.getAttribute('style')).toContain('font-size: 0.82em');
-    expect(paragraphBlock.getAttribute('style')).not.toContain('font-size: 0.82em');
+    expect(paragraphBlock.getAttribute('style')).toContain('font-size: 0.9em');
+    // flex 容器里不占满整行，中文会被挤成逐字竖排。
+    expect(paragraphBlock.getAttribute('style')).toContain('flex-basis: 100%');
   });
 
   it('日期与相对时间不进入可翻译文本', () => {
@@ -455,6 +503,60 @@ describe('PageTranslationSession 表格与数字', () => {
     await waitFor(() => session.getState().status === 'completed');
 
     expect(bodyTranslations()).toEqual(['于 2026-11-14 发布，共 1,007,405 票，占 5.2%。']);
+  });
+});
+
+describe('PageTranslationSession 就地重试', () => {
+  it('失败段落可以在原文位置点重试，只重新提交这一段', async () => {
+    setPage('<main><p>Good paragraph text here.</p><p>Broken paragraph text here.</p></main>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine);
+
+    await session.start();
+    succeed(manual, 0, 0, '第一段译文。');
+    fail(manual, 0, 1);
+    complete(manual, 0);
+    await waitFor(() => session.getState().status === 'partial-failure');
+
+    const marker = document.querySelector('[data-aiwt="failure"]');
+    expect(marker?.textContent).toContain('本段译文获取失败');
+    const retry = marker?.querySelector('button');
+    expect(retry?.textContent).toBe('重试');
+
+    retry?.click();
+
+    await waitFor(() => manual.requests.length === 2);
+    expect(manual.requests[1]?.units).toHaveLength(1);
+    expect(manual.requests[1]?.units[0]?.text).toBe('Broken paragraph text here.');
+    expect(session.getState().status).toBe('translating');
+
+    succeed(manual, 1, 0, '第二段译文。');
+    complete(manual, 1);
+    await waitFor(() => session.getState().status === 'completed');
+
+    expect(document.querySelector('[data-aiwt="failure"]')).toBeNull();
+    expect(bodyTranslations()).toEqual(['第一段译文。', '第二段译文。']);
+  });
+
+  it('点击重试不会冒泡到页面自己的点击处理', async () => {
+    setPage('<main><p>Only failing paragraph here.</p></main>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine);
+
+    await session.start();
+    fail(manual, 0, 0);
+    complete(manual, 0);
+    await waitFor(() => session.getState().status === 'partial-failure');
+
+    let bubbled = 0;
+    document.body.addEventListener('click', () => {
+      bubbled += 1;
+    });
+
+    document.querySelector('[data-aiwt="failure"] button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(bubbled).toBe(0);
+    expect(manual.requests).toHaveLength(2);
   });
 });
 

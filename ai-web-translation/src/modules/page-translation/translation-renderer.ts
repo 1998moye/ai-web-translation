@@ -15,6 +15,10 @@ export interface RenderedTranslation {
   restore(): void;
 }
 
+/**
+ * 译文块始终用相对字号，不照抄原文的绝对像素：原文若是大号标题，照抄会撑爆版面；
+ * flex 容器里还需要占满整行，否则中文会在被挤窄的列里逐字竖排。
+ */
 const BODY_BLOCK_STYLE = [
   'display: block',
   'margin: 0.35em 0 0.15em',
@@ -22,9 +26,13 @@ const BODY_BLOCK_STYLE = [
   'border: 0',
   'background: transparent',
   'white-space: normal',
+  'font-size: 0.9em',
+  'line-height: 1.5',
+  'width: 100%',
+  'flex-basis: 100%',
 ].join(';');
 
-/** 表格里再插入一份同字号译文会把行高撑开、列宽挤窄，因此缩小并收紧行距。 */
+/** 表格里再插入一份同字号译文会把行高撑开、列宽挤窄，因此更小并收紧行距。 */
 const TABLE_BLOCK_STYLE = [
   BODY_BLOCK_STYLE,
   'font-size: 0.82em',
@@ -53,46 +61,86 @@ const TABLE_CELL_SELECTOR = 'td, th, caption';
  */
 const INHERITED_TYPOGRAPHY = [
   'font-family',
-  'font-size',
   'font-weight',
   'font-style',
-  'letter-spacing',
-  'line-height',
   'color',
   'text-align',
   'text-transform',
 ] as const;
 
 /**
- * 把译文块放到原文旁边：
- * 表格单元格与标题放在元素内部，其余元素放在元素之后，保持原文与页面事件不变。
+ * 把译文块放到原文旁边，保持原文与页面事件不变。
+ *
+ * 表格容器里不能出现额外兄弟节点，flex/grid 容器里新块会被挤成独立项目
+ * （中文会因此逐字竖排），这两种情况都放进元素内部，沿用原文的列宽。
  */
-function placeBlock(source: Element, block: HTMLElement): boolean {
+function placeBlock(doc: Document, source: Element, block: HTMLElement): boolean {
   const parent = source.parentElement;
   if (!parent) return false;
-  if (TABLE_CONTAINER_TAGS.has(parent.tagName.toUpperCase())) {
+
+  if (TABLE_CONTAINER_TAGS.has(parent.tagName.toUpperCase()) || isFlexOrGrid(doc, parent)) {
     source.append(block);
     return true;
   }
+
   source.insertAdjacentElement('afterend', block);
   return true;
 }
 
+function isFlexOrGrid(doc: Document, element: Element): boolean {
+  const view = doc.defaultView;
+  if (!view) return false;
+  try {
+    const display = view.getComputedStyle(element).getPropertyValue('display');
+    return display.includes('flex') || display.includes('grid');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 译文块的样式：字号与行距用相对值，其余排版属性（尤其是颜色）沿用原文。
+ * 只取文字颜色，不取背景与边框，避免译文块盖出多余色块。
+ */
+/**
+ * 找出真正承载文字的元素。
+ *
+ * 提交信息这类单元格把颜色加在内层 span 上，而翻译单元是外层的单元格；
+ * 只看外层就会拿到默认的黑色，译文与原文颜色对不上。
+ */
+function textHostOf(source: Element): Element {
+  const host = (element: Element): Element => {
+    const children = Array.from(element.children).filter((child) => !isSkippedElement(child));
+    const hasOwnText = Array.from(element.childNodes).some(
+      (node) => node.nodeType === Node.TEXT_NODE && (node.nodeValue ?? '').trim(),
+    );
+    if (hasOwnText || children.length !== 1) return element;
+    return host(children[0]!);
+  };
+
+  try {
+    return host(source);
+  } catch {
+    return source;
+  }
+}
+
 function styleFor(doc: Document, source: Element, inTable: boolean): string {
-  if (inTable) return TABLE_BLOCK_STYLE;
+  const base = inTable ? TABLE_BLOCK_STYLE : BODY_BLOCK_STYLE;
 
   const view = doc.defaultView;
-  if (!view) return BODY_BLOCK_STYLE;
+  if (!view) return base;
 
-  let style = BODY_BLOCK_STYLE;
+  const host = textHostOf(source);
+  let style = base;
   try {
-    const computed = view.getComputedStyle(source);
+    const computed = view.getComputedStyle(host);
     for (const property of INHERITED_TYPOGRAPHY) {
       const value = computed.getPropertyValue(property);
       if (value) style += `;${property}: ${value}`;
     }
   } catch {
-    return BODY_BLOCK_STYLE;
+    return base;
   }
   return style;
 }
@@ -116,7 +164,7 @@ export function renderBodyTranslation(
   block.setAttribute('style', styleFor(doc, source, inTable));
   block.append(...nodes);
 
-  if (!placeBlock(source, block)) return null;
+  if (!placeBlock(doc, source, block)) return null;
 
   return {
     nodes: [block],
@@ -203,19 +251,43 @@ export function renderInterfaceTranslation(
   };
 }
 
-/** 失败标记：保留英文原文，并让用户看到这一段的失败状态。 */
+const FAILURE_RETRY_STYLE = [
+  'background: transparent',
+  'border: 0',
+  'padding: 0',
+  'margin: 0 0 0 0.3em',
+  'font: inherit',
+  'color: #b45309',
+  'text-decoration: underline',
+  'cursor: pointer',
+].join(';');
+
+/** 失败标记：保留英文原文，并允许在这一段的位置直接重试。 */
 export function renderFailureMarker(
   doc: Document,
   source: Element,
   unitId: TranslationUnitId,
+  onRetry: () => void = () => {},
 ): RenderedTranslation | null {
   const block = doc.createElement('div');
   block.setAttribute(OWN_NODE_ATTRIBUTE, 'failure');
   block.setAttribute('data-aiwt-unit', unitId);
   block.setAttribute('style', FAILURE_BLOCK_STYLE);
-  block.textContent = '本段译文获取失败，可点击悬浮翻译按钮重试。';
 
-  if (!placeBlock(source, block)) return null;
+  const retry = doc.createElement('button');
+  retry.type = 'button';
+  retry.textContent = '重试';
+  retry.setAttribute('style', FAILURE_RETRY_STYLE);
+  retry.addEventListener('click', (event) => {
+    // 失败提示常出现在链接或可点击的单元格里，别让页面自己的点击行为跟着触发。
+    event.preventDefault();
+    event.stopPropagation();
+    onRetry();
+  });
+
+  block.append(doc.createTextNode('本段译文获取失败，'), retry);
+
+  if (!placeBlock(doc, source, block)) return null;
 
   return {
     nodes: [block],
