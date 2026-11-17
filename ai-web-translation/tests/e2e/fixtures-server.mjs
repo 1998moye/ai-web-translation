@@ -11,6 +11,14 @@ const port = Number(process.env.PORT ?? 4321);
 const chatStats = new Map();
 /** 限流场景只拒绝第一次请求，之后正常返回。 */
 let rateLimitOnceHits = 0;
+/** 其他一次性场景（首次失败、乱序延迟）的请求序号。 */
+const scenarioHits = new Map();
+
+function nextScenarioHit(scenario) {
+  const next = (scenarioHits.get(scenario) ?? 0) + 1;
+  scenarioHits.set(scenario, next);
+  return next;
+}
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -36,6 +44,7 @@ const server = http.createServer(async (request, response) => {
   if (url.pathname === '/mock/reset') {
     chatStats.clear();
     rateLimitOnceHits = 0;
+    scenarioHits.clear();
     response.writeHead(200, { 'content-type': 'text/plain' });
     response.end('reset');
     return;
@@ -65,6 +74,7 @@ server.listen(port, () => {
 
 async function handleMockChat(scenario, request, response) {
   chatStats.set(scenario, (chatStats.get(scenario) ?? 0) + 1);
+  const attempt = nextScenarioHit(scenario);
   const body = await readJsonBody(request);
 
   const reject = (status, headers = {}) => {
@@ -82,6 +92,7 @@ async function handleMockChat(scenario, request, response) {
     // 第一次限流之后正常返回，用于验证自动重试。
   }
   if (scenario === 'server-error') return reject(503);
+  if (scenario === 'server-error-once' && attempt === 1) return reject(503);
 
   if (scenario === 'garbage') {
     response.writeHead(200, { 'content-type': 'application/json' });
@@ -89,23 +100,34 @@ async function handleMockChat(scenario, request, response) {
     return;
   }
 
-  // 慢响应：用于验证「测试中」状态与防重复提交。
+  // 慢响应：用于验证「测试中」状态、取消与超时（超时由配置决定）。
   if (scenario === 'slow') await new Promise((resolve) => setTimeout(resolve, 1200));
+  if (scenario === 'timeout') await new Promise((resolve) => setTimeout(resolve, 3000));
+  // 第一批故意慢于第二批，用于验证乱序返回仍按原文顺序显示。
+  if (scenario === 'out-of-order') {
+    await new Promise((resolve) => setTimeout(resolve, attempt === 1 ? 900 : 50));
+  }
 
   // 默认场景：按请求单元逐个返回约定结构的译文。
   const units = readUnits(body);
   const prefix = scenario === 'alt' ? '备选译文：' : '模拟译文：';
   // partial 场景故意漏掉第一个单元的译文，用于验证部分失败。
-  const translated = scenario === 'partial' ? units.slice(1) : units;
-  const payload = {
-    translations: translated.map((unit) => ({ id: unit.id, text: `${prefix}${unit.text}` })),
-  };
+  // flaky-partial 只让第一次请求漏掉第一个单元，重试后完整返回。
+  let translated = units;
+  if (scenario === 'partial') translated = units.slice(1);
+  if (scenario === 'flaky-partial' && attempt === 1) translated = units.slice(1);
+
+  // invalid-ids 返回请求中不存在的单元 ID：不能猜测性渲染。
+  const translations =
+    scenario === 'invalid-ids'
+      ? units.map((unit) => ({ id: `unknown-${unit.id}`, text: `${prefix}${unit.text}` }))
+      : translated.map((unit) => ({ id: unit.id, text: `${prefix}${unit.text}` }));
 
   response.writeHead(200, { 'content-type': 'application/json' });
   response.end(
     JSON.stringify({
       model: body?.model ?? 'mock-model',
-      choices: [{ message: { role: 'assistant', content: JSON.stringify(payload) } }],
+      choices: [{ message: { role: 'assistant', content: JSON.stringify({ translations }) } }],
     }),
   );
 }

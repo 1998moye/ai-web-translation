@@ -248,7 +248,9 @@ export class PageTranslationController {
       case 'completed':
         return progress.succeeded > 0 ? `已翻译 ${progress.succeeded} 段` : '没有需要翻译的英文内容';
       case 'partial-failure':
-        return `已完成，${progress.failed} 段失败`;
+        return state.lastError
+          ? `已完成，${progress.failed} 段失败：${state.lastError.message}`
+          : `已完成，${progress.failed} 段失败`;
       case 'cancelled':
         return '已取消翻译';
       case 'failed':

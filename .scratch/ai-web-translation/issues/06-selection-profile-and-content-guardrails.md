@@ -4,7 +4,7 @@
 
 **Blocked by:** 05: 完成默认配置下的划词翻译
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [ ] 划词气泡可以列出 Translation Profile Catalog 中的配置摘要，并标识当前配置。
 - [ ] 用户可以选择另一份有效配置翻译当前选区，新结果不能与之前配置的结果混淆。

@@ -4,7 +4,7 @@
 
 **Blocked by:** 04: 配置翻译提示词并测试真实连接
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [ ] 选中普通英文文本后显示位置合理的翻译图标，未点击时不会产生翻译请求。
 - [ ] 点击图标后在选区附近显示 Shadow DOM 隔离的译文气泡，并提供明确的加载状态。

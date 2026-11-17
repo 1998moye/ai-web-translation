@@ -4,7 +4,7 @@
 
 **Blocked by:** 02: 建立基础翻译服务配置
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [ ] 每份配置支持自定义请求头，使用其他认证方式时可以留空 API Key 并通过请求头认证。
 - [ ] 额外请求参数以 JSON 对象编辑，新配置默认包含 reasoning_effort 为 none，不提供独立的思考等级按钮。

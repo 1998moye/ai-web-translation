@@ -28,7 +28,7 @@ export function HealthStatus() {
     state.kind === 'checking'
       ? '正在检查扩展后台…'
       : state.kind === 'ok'
-        ? `扩展后台已连接（v${state.version}${state.fakeEngine ? '，开发演示构建' : ''}）`
+        ? `扩展后台已连接（v${state.version}${__AIWT_FAKE_ENGINE__ && state.fakeEngine ? '，开发演示构建' : ''}）`
         : '扩展后台未连接';
 
   return (

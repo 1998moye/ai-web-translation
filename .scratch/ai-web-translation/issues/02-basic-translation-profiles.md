@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: 建立扩展骨架与共享契约
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 - [ ] 用户可以创建、编辑、删除多份命名配置，每份配置具有稳定 ID 并保存完整 URL、API Key 和模型名。
 - [ ] 必填名称、URL 和模型名具有明确校验与错误提示；API Key 可以留空。

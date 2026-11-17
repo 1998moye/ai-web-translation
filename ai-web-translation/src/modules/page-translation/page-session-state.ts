@@ -24,6 +24,8 @@ export interface PageSessionState {
   progress: PageSessionProgress;
   /** 会话级脱敏错误，例如没有可用配置。 */
   error?: SanitizedTranslationError;
+  /** 最近一个失败单元的脱敏错误，用于向用户说明失败原因。 */
+  lastError?: SanitizedTranslationError;
 }
 
 export function computeProgress(phases: Iterable<UnitPhase>): PageSessionProgress {

@@ -182,12 +182,18 @@ export class PageTranslationSession {
   }
 
   getState(): PageSessionState {
-    const progress = computeProgress([...this.registry.values()].map((record) => record.phase));
+    const records = [...this.registry.values()];
+    const progress = computeProgress(records.map((record) => record.phase));
     const status = this.status === 'translating' ? deriveActiveStatus(progress) : this.status;
+    let lastError: SanitizedTranslationError | undefined;
+    for (const record of records) {
+      if (record.phase === 'failed' && record.error) lastError = record.error;
+    }
     return {
       status,
       progress,
       ...(this.stateError ? { error: this.stateError } : {}),
+      ...(lastError ? { lastError } : {}),
     };
   }
 

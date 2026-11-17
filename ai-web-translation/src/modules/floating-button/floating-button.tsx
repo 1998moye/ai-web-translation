@@ -48,7 +48,7 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
       data-aiwt-dragging={dragging ? 'true' : 'false'}
       data-aiwt-panel-side={panelSide}
     >
-      {snapshot.fakeEngine && <div className="aiwt-fab-badge">开发演示 · 模拟翻译</div>}
+      {__AIWT_FAKE_ENGINE__ && snapshot.fakeEngine && <div className="aiwt-fab-badge">开发演示 · 模拟翻译</div>}
 
       <button
         type="button"

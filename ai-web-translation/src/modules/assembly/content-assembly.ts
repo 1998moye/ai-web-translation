@@ -15,8 +15,6 @@ import { createFakeProfileCatalog } from '../translation-fake/fake-profile-catal
 export interface ContentAssemblyOptions {
   doc?: Document;
   hostname?: string;
-  /** 测试或开发演示显式启用 fake Translation Engine。 */
-  useFakeEngine?: boolean;
   storage?: KeyValueStorage;
   openSettings?: () => void;
   /** 测试可关闭动态内容监听。 */
@@ -32,12 +30,13 @@ export interface ContentAssembly {
 }
 
 /**
- * 内容脚本装配：把 Translation Engine、配置目录、网站偏好和悬浮按钮连接起来。
- * 生产装配使用占位 Engine（不伪造译文）；开发演示构建使用 fake Adapter。
+ * 内容脚本装配：把 Translation Engine、配置目录、网站偏好、悬浮按钮与划词翻译连接起来。
+ * 生产构建一律使用后台的真实 Engine；只有 AIWT_FAKE_ENGINE=1 的开发演示构建包含 fake。
  */
 export function createContentAssembly(options: ContentAssemblyOptions = {}): ContentAssembly {
   const doc = options.doc ?? document;
-  const useFakeEngine = options.useFakeEngine ?? __AIWT_FAKE_ENGINE__;
+  // 编译期常量：生产构建中为 false，fake 分支与导入会被摇树移除。
+  const useFakeEngine = __AIWT_FAKE_ENGINE__;
   const storage = options.storage ?? createChromeStorage();
   const hostname = options.hostname ?? doc.location?.hostname ?? '';
 
