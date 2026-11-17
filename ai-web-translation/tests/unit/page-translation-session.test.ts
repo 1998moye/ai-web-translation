@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { TranslationEngine } from '@/modules/translation-contract/translation-engine';
 import { PageTranslationSession, type PageTranslationSessionOptions } from '@/modules/page-translation/page-translation-session';
+import { scanTranslatableTargets } from '@/modules/content-scan/scan-translatable-targets';
 import { FakeTranslationEngine } from '@/modules/translation-fake/fake-translation-engine';
 import { createFakeProfileCatalog } from '@/modules/translation-fake/fake-profile-catalog';
 import { setPage, waitFor } from './helpers/dom';
@@ -342,6 +343,77 @@ describe('PageTranslationSession 动态内容与原文变化', () => {
   });
 });
 
+describe('PageTranslationSession 译文排版', () => {
+  it('界面文本只改写文字，保留包裹文字的 span 与样式类名', async () => {
+    setPage(
+      '<nav><a href="/issues" class="nav-link"><svg aria-hidden="true"></svg><span class="nav-label">Views</span></a></nav>',
+    );
+    const manual = createManualEngine();
+    const session = createSession(manual.engine);
+
+    await session.start();
+    succeed(manual, 0, 0, '视图');
+    complete(manual, 0);
+    await waitFor(() => session.getState().status === 'completed');
+
+    const link = document.querySelector('a');
+    // span 一旦被替换掉，class 就没了，侧边栏宽度塌成一条竖排文字。
+    expect(link?.querySelector('span.nav-label')?.textContent).toBe('视图');
+    expect(link?.querySelector('svg')).not.toBeNull();
+    expect(link?.getAttribute('href')).toBe('/issues');
+
+    session.restore();
+    expect(link?.querySelector('span.nav-label')?.textContent).toBe('Views');
+    expect(link?.querySelector('svg')).not.toBeNull();
+  });
+
+  it('译文与原文完全相同时不插入重复内容', async () => {
+    setPage('<main><p>.agents/skills</p><p>The quick brown fox jumps.</p></main>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine);
+
+    await session.start();
+    const [request] = manual.requests;
+    if (!request) throw new Error('缺少翻译请求');
+    for (const [index, unit] of request.units.entries()) {
+      succeed(manual, 0, index, unit.text === '.agents/skills' ? unit.text : '敏捷的棕色狐狸跳了起来。');
+    }
+    complete(manual, 0);
+    await waitFor(() => session.getState().status === 'completed');
+
+    // 只有真正翻译过的那一段有译文块，标识符不再重复出现两份。
+    expect(bodyTranslations()).toEqual(['敏捷的棕色狐狸跳了起来。']);
+    expect(session.getState().progress.succeeded).toBe(2);
+  });
+
+  it('表格里的译文比正文更小，避免撑开行高与列宽', async () => {
+    setPage(
+      '<main><p>Regular paragraph outside the table.</p>' +
+        '<table><tbody><tr><td>Cell text inside the table.</td></tr></tbody></table></main>',
+    );
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const paragraphBlock = document.querySelector('p + [data-aiwt="body-translation"]') as HTMLElement;
+    const cellBlock = document.querySelector('td [data-aiwt="body-translation"]') as HTMLElement;
+
+    expect(cellBlock.getAttribute('style')).toContain('font-size: 0.82em');
+    expect(paragraphBlock.getAttribute('style')).not.toContain('font-size: 0.82em');
+  });
+
+  it('日期与相对时间不进入可翻译文本', () => {
+    setPage('<main><p>Opened on Oct 17, 2026 by paulirish, updated 4 days ago.</p></main>');
+
+    const targets = scanTranslatableTargets(document);
+    const text = targets[0]?.text ?? '';
+    expect(text).not.toMatch(/Oct|days ago/);
+    expect(text).toContain('Opened on ⟦o1⟧');
+  });
+});
+
 describe('PageTranslationSession 表格与数字', () => {
   it('表格单元格的译文写在单元格内部，不改变表格结构', async () => {
     setPage(
@@ -377,11 +449,12 @@ describe('PageTranslationSession 表格与数字', () => {
     expect(plain).not.toMatch(/\d/);
     expect(unit.text.match(/⟦o\d+⟧/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
 
-    succeed(manual, 0, 0, unit.text);
+    // 模型保留占位标记，只把句子翻译成中文。
+    succeed(manual, 0, 0, '于 ⟦o1⟧ 发布，共 ⟦o2⟧ 票，占 ⟦o3⟧%。');
     complete(manual, 0);
     await waitFor(() => session.getState().status === 'completed');
 
-    expect(bodyTranslations()).toEqual(['Released 2026-11-14 with 1,007,405 votes at 5.2 percent.']);
+    expect(bodyTranslations()).toEqual(['于 2026-11-14 发布，共 1,007,405 票，占 5.2%。']);
   });
 });
 

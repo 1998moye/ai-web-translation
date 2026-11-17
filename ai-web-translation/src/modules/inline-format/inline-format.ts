@@ -30,6 +30,13 @@ const SKIP_TAGS = new Set([
 /** 数字、版本号、日期与区间：用占位标记保护起来，模型没有机会改写它们。 */
 const NUMBER_PATTERN = /\d+(?:[.,:/-]\d+)*/g;
 
+/**
+ * 日期与相对时间（Oct 10、Oct 17, 2026、4h ago、2 days ago）。
+ * 月份名交给模型翻译会把整行元数据改写错，这里连同数字一起原样保留。
+ */
+const DATE_PATTERN =
+  /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:,\s*\d{4})?\b|\b\d+\s*(?:s|m|h|d|w|mo|y|second|minute|hour|day|week|month|year)s?\s+ago\b/g;
+
 const WRAP_TAGS: Record<string, InlineWrapTag> = {
   A: 'a',
   EM: 'em',
@@ -118,16 +125,20 @@ export function buildInlinePayload(root: Element): InlinePayload | null {
     for (const child of Array.from(element.childNodes)) walk(child);
   };
 
+  const pushOpaque = (text: string): void => {
+    opaqueSlot += 1;
+    const marker = `⟦o${opaqueSlot}⟧`;
+    formats.push({ marker, kind: 'opaque', tag: 'number', text });
+    parts.push(marker);
+  };
+
   const pushText = (value: string): void => {
     let cursor = 0;
-    for (const match of value.matchAll(NUMBER_PATTERN)) {
-      const index = match.index ?? 0;
+    for (const match of matchProtected(value)) {
+      const index = match.index;
       if (index > cursor) parts.push(value.slice(cursor, index));
-      opaqueSlot += 1;
-      const marker = `⟦o${opaqueSlot}⟧`;
-      formats.push({ marker, kind: 'opaque', tag: 'number', text: match[0] });
-      parts.push(marker);
-      cursor = index + match[0].length;
+      pushOpaque(match.text);
+      cursor = index + match.text.length;
     }
     if (cursor < value.length) parts.push(value.slice(cursor));
   };
@@ -188,6 +199,21 @@ export function buildInlinePayload(root: Element): InlinePayload | null {
   if (!/[A-Za-z]/.test(stripInlineMarkers(text))) return null;
 
   return { text, formats };
+}
+
+/** 按出现顺序合并数字与日期两类保护片段，重叠时保留更长的那个。 */
+function matchProtected(value: string): { index: number; text: string }[] {
+  const found: { index: number; text: string }[] = [];
+  for (const pattern of [DATE_PATTERN, NUMBER_PATTERN]) {
+    for (const match of value.matchAll(pattern)) {
+      const index = match.index ?? 0;
+      if (found.some((item) => index < item.index + item.text.length && item.index < index + match[0].length)) {
+        continue;
+      }
+      found.push({ index, text: match[0] });
+    }
+  }
+  return found.sort((left, right) => left.index - right.index);
 }
 
 /** 折叠空白，并去掉格式标记内侧的空格，避免译文里出现首尾空白。 */

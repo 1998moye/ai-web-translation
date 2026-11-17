@@ -22,11 +22,13 @@ import {
   type UnitPhase,
 } from './page-session-state';
 import { buildTranslationContext } from './translation-context';
+import { formatPlainText } from '../inline-format/inline-format';
+import { normalizeText } from '@/shared/text';
 import {
-  isRendering,
   renderBodyTranslation,
   renderFailureMarker,
   renderInterfaceTranslation,
+  renderUnchanged,
   type RenderedTranslation,
 } from './translation-renderer';
 
@@ -284,9 +286,7 @@ export class PageTranslationSession {
 
   private renderingIntact(record: UnitRecord): boolean {
     if (!record.element.isConnected) return false;
-    if (!record.rendered) return false;
-    if (record.kind === 'body') return record.rendered.nodes.every((node) => node.isConnected);
-    return isRendering(record.element, record.rendered.nodes);
+    return record.rendered?.isIntact() ?? false;
   }
 
   /** 原文未变但译文被站点移除：直接用已有译文重渲染，不重新请求。 */
@@ -389,7 +389,12 @@ export class PageTranslationSession {
       return;
     }
 
-    const rendered = this.renderRecord(record, translated);
+    // 模型原样返回（文件名、标识符等）时不再插入一份重复内容。
+    const unchanged =
+      normalizeText(formatPlainText(translated, record.formats)) ===
+      normalizeText(formatPlainText(record.originalText, record.formats));
+
+    const rendered = unchanged ? renderUnchanged(record.element) : this.renderRecord(record, translated);
     if (!rendered) {
       this.failRecord(record, {
         code: 'response-invalid',
