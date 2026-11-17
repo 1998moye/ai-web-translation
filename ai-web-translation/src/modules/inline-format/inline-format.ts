@@ -4,7 +4,7 @@ import { normalizeText } from '@/shared/text';
 export type InlineWrapTag = 'a' | 'em' | 'strong';
 
 export type InlineFormat =
-  | { marker: string; kind: 'opaque'; tag: 'code'; text: string }
+  | { marker: string; kind: 'opaque'; tag: 'code' | 'number'; text: string }
   | {
       marker: string;
       kind: 'wrap';
@@ -26,6 +26,9 @@ const SKIP_TAGS = new Set([
   'SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'SVG', 'CANVAS', 'IFRAME', 'OBJECT', 'EMBED', 'IMG', 'VIDEO',
   'AUDIO', 'INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'META', 'LINK', 'MAP', 'AREA',
 ]);
+
+/** 数字、版本号、日期与区间：用占位标记保护起来，模型没有机会改写它们。 */
+const NUMBER_PATTERN = /\d+(?:[.,:/-]\d+)*/g;
 
 const WRAP_TAGS: Record<string, InlineWrapTag> = {
   A: 'a',
@@ -115,9 +118,23 @@ export function buildInlinePayload(root: Element): InlinePayload | null {
     for (const child of Array.from(element.childNodes)) walk(child);
   };
 
+  const pushText = (value: string): void => {
+    let cursor = 0;
+    for (const match of value.matchAll(NUMBER_PATTERN)) {
+      const index = match.index ?? 0;
+      if (index > cursor) parts.push(value.slice(cursor, index));
+      opaqueSlot += 1;
+      const marker = `⟦o${opaqueSlot}⟧`;
+      formats.push({ marker, kind: 'opaque', tag: 'number', text: match[0] });
+      parts.push(marker);
+      cursor = index + match[0].length;
+    }
+    if (cursor < value.length) parts.push(value.slice(cursor));
+  };
+
   const walk = (node: Node): void => {
     if (node.nodeType === node.TEXT_NODE) {
-      parts.push(node.textContent ?? '');
+      pushText(node.textContent ?? '');
       return;
     }
     if (node.nodeType !== node.ELEMENT_NODE) return;
@@ -184,9 +201,30 @@ function plainText(text: string): string {
   return normalizeText(stripInlineMarkers(text));
 }
 
-/** 供悬停查看原文使用：去掉标记后的纯文本。 */
-export function formatPlainText(text: string): string {
-  return plainText(text);
+/**
+ * 把占位标记还原成它们代表的原文（数字、行内代码）。
+ *
+ * 指纹必须基于还原后的文本：数字被标记保护后，如果直接用请求文本算指纹，
+ * 页面上变化了的计数或版本号就不会被当作内容变化。
+ */
+export function expandOpaqueMarkers(text: string, formats: readonly InlineFormat[]): string {
+  if (formats.length === 0) return text;
+  const opaque = new Map(
+    formats.filter((format) => format.kind === 'opaque').map((format) => [format.marker, format.text]),
+  );
+  return text.replace(/⟦o\d+⟧/g, (marker) => opaque.get(marker) ?? marker);
+}
+
+/**
+ * 供悬停查看原文使用：去掉格式标记，并把数字等占位内容还原成原文。
+ */
+export function formatPlainText(text: string, formats: readonly InlineFormat[] = []): string {
+  if (formats.length === 0) return plainText(text);
+
+  const opaque = new Map(
+    formats.filter((format) => format.kind === 'opaque').map((format) => [format.marker, format.text]),
+  );
+  return plainText(text.replace(/⟦o\d+⟧/g, (marker) => opaque.get(marker) ?? ''));
 }
 
 interface TextToken {
@@ -321,6 +359,10 @@ export function createInlineNodes(
     if (token.type === 'text') {
       append(doc.createTextNode(token.value));
     } else if (token.type === 'opaque') {
+      if (token.format.tag === 'number') {
+        append(doc.createTextNode(token.format.text));
+        continue;
+      }
       const code = doc.createElement('code');
       code.setAttribute(OWN_NODE_ATTRIBUTE, 'inline');
       code.textContent = token.format.text;

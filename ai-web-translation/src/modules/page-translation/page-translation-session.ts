@@ -246,6 +246,9 @@ export class PageTranslationSession {
 
     for (const [element, record] of [...this.elementRecords]) {
       if (seen.has(element)) continue;
+      // 界面文本被替换成译文后不再是扫描目标（译文里可能没有英文单词）；
+      // 只要译文仍在，就继续保持，否则每次重扫都会还原再翻译，页面一直闪。
+      if (record.kind === 'interface' && record.phase === 'translated' && this.renderingIntact(record)) continue;
       this.invalidate(record);
     }
 
@@ -271,7 +274,8 @@ export class PageTranslationSession {
   }
 
   private invalidate(record: UnitRecord): void {
-    record.rendered?.restore();
+    // 还原译文同样是我们对 DOM 的写入，必须标记，否则会被当成站点变动再次触发扫描。
+    this.runOwnMutation(() => record.rendered?.restore());
     record.rendered = undefined;
     record.requestId = undefined;
     this.registry.delete(record.id);

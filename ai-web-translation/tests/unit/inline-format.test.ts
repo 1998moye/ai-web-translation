@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildInlinePayload,
   createInlineNodes,
+  expandOpaqueMarkers,
   formatPlainText,
 } from '@/modules/inline-format/inline-format';
 import { setPage } from './helpers/dom';
@@ -63,6 +64,38 @@ describe('buildInlinePayload', () => {
 
   it('去标记后的纯文本可用于悬停查看原文', () => {
     expect(formatPlainText('Read ⟦w1⟧the docs⟦/w1⟧ and ⟦o1⟧ now.')).toBe('Read the docs and now.');
+  });
+
+  it('悬停原文里的数字按占位标记还原成原文', () => {
+    const formats = [{ marker: '⟦o1⟧', kind: 'opaque' as const, tag: 'number' as const, text: '2026-11-14' }];
+    expect(formatPlainText('Released ⟦o1⟧ for good.', formats)).toBe('Released 2026-11-14 for good.');
+  });
+
+  it('还原占位标记得到可用于比对内容变化的文本', () => {
+    const payload = buildInlinePayload(rootOf('<p>Version 5.2 shipped on 2026-11-14.</p>'));
+    expect(expandOpaqueMarkers(payload?.text ?? '', payload?.formats ?? [])).toBe(
+      'Version 5.2 shipped on 2026-11-14.',
+    );
+  });
+
+  it('数字变化会改变指纹，live 计数更新后能重新翻译', () => {
+    const before = buildInlinePayload(rootOf('<p>Votes: 1826 today.</p>'));
+    const after = buildInlinePayload(rootOf('<p>Votes: 1827 today.</p>'));
+    expect(before?.text).toBe(after?.text);
+    expect(expandOpaqueMarkers(before?.text ?? '', before?.formats ?? [])).not.toBe(
+      expandOpaqueMarkers(after?.text ?? '', after?.formats ?? []),
+    );
+  });
+
+  it('数字、版本号与日期变成不可翻译的原子内容', () => {
+    const payload = buildInlinePayload(rootOf('<p>Claude 5.2 released 2026-11-14 with 1,007,405 votes.</p>'));
+
+    expect(payload?.text).toBe('Claude ⟦o1⟧ released ⟦o2⟧ with ⟦o3⟧ votes.');
+    expect(payload?.formats.map((format) => (format.kind === 'opaque' ? format.text : ''))).toEqual([
+      '5.2',
+      '2026-11-14',
+      '1,007,405',
+    ]);
   });
 });
 

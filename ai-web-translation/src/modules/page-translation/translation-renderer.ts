@@ -36,8 +36,20 @@ const FAILURE_BLOCK_STYLE = [
   'color: #b45309',
 ].join(';');
 
-function insertBlockAfter(source: Element, block: HTMLElement): boolean {
-  if (!source.parentElement) return false;
+/** 这些父元素里不能出现额外的块级兄弟节点：浏览器会把整张表的结构和列宽重排。 */
+const TABLE_CONTAINER_TAGS = new Set(['TR', 'TBODY', 'THEAD', 'TFOOT', 'TABLE', 'COLGROUP']);
+
+/**
+ * 把译文块放到原文旁边：
+ * 表格单元格与标题放在元素内部，其余元素放在元素之后，保持原文与页面事件不变。
+ */
+function placeBlock(source: Element, block: HTMLElement): boolean {
+  const parent = source.parentElement;
+  if (!parent) return false;
+  if (TABLE_CONTAINER_TAGS.has(parent.tagName.toUpperCase())) {
+    source.append(block);
+    return true;
+  }
   source.insertAdjacentElement('afterend', block);
   return true;
 }
@@ -60,7 +72,7 @@ export function renderBodyTranslation(
   block.setAttribute('style', BODY_BLOCK_STYLE);
   block.append(...nodes);
 
-  if (!insertBlockAfter(source, block)) return null;
+  if (!placeBlock(source, block)) return null;
 
   return {
     nodes: [block],
@@ -101,7 +113,7 @@ export function renderInterfaceTranslation(
 
   const renderedNodes = Array.from(element.childNodes);
   element.setAttribute('data-aiwt-translated', 'true');
-  element.setAttribute('title', formatPlainText(originalText));
+  element.setAttribute('title', formatPlainText(originalText, formats));
 
   return {
     nodes: renderedNodes,
@@ -127,7 +139,7 @@ export function renderFailureMarker(
   block.setAttribute('style', FAILURE_BLOCK_STYLE);
   block.textContent = '本段译文获取失败，可点击悬浮翻译按钮重试。';
 
-  if (!insertBlockAfter(source, block)) return null;
+  if (!placeBlock(source, block)) return null;
 
   return {
     nodes: [block],

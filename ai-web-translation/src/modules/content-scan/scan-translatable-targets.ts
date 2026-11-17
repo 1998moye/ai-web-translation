@@ -2,6 +2,7 @@ import { fingerprintText, normalizeText } from '@/shared/text';
 import type { TranslationUnitKind } from '../translation-contract/types';
 import {
   buildInlinePayload,
+  expandOpaqueMarkers,
   isCodeElement,
   isHiddenElement,
   OWN_NODE_SELECTOR,
@@ -184,7 +185,7 @@ export function scanTranslatableTargets(doc: Document = document): TranslatableT
     kind: bodyElements.has(element) ? 'body' : 'interface',
     text: payload.text,
     formats: payload.formats,
-    fingerprint: fingerprintText(payload.text),
+    fingerprint: fingerprintText(expandOpaqueMarkers(payload.text, payload.formats)),
   }));
 }
 

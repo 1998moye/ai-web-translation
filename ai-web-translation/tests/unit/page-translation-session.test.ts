@@ -210,6 +210,33 @@ describe('PageTranslationSession 界面文本', () => {
     expect(button?.querySelector('svg')).not.toBeNull();
   });
 
+  it('页面发生无关变动时已翻译的界面文本不会来回闪', async () => {
+    setPage('<nav><a href="/docs">Documentation</a></nav><button>Sign in</button>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine, { observeMutations: true });
+
+    await session.start();
+    // 译文里没有拉丁字母：替换之后这两个元素不再是扫描目标。
+    const [request] = manual.requests;
+    if (!request) throw new Error('缺少翻译请求');
+    for (const [index, unit] of request.units.entries()) {
+      succeed(manual, 0, index, unit.kind === 'interface' ? '中文界面文本' : '中文正文');
+    }
+    complete(manual, 0);
+
+    await waitFor(() => session.getState().status === 'completed');
+    expect(document.querySelector('a')?.textContent).toBe('中文界面文本');
+
+    // 站点自己插入无关节点，触发一次重扫。
+    document.querySelector('nav')?.append(document.createElement('span'));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(document.querySelector('a')?.textContent).toBe('中文界面文本');
+    expect(document.querySelector('button')?.textContent).toBe('中文界面文本');
+    expect(manual.requests).toHaveLength(1);
+    expect(session.getState().progress).toMatchObject({ total: 2, succeeded: 2 });
+  });
+
   it('界面文本原文变化后重新翻译，不沿用旧译文', async () => {
     setPage('<button>Sign in</button>');
     const engine = new FakeTranslationEngine();
@@ -312,6 +339,49 @@ describe('PageTranslationSession 动态内容与原文变化', () => {
     document.querySelector('p')?.remove();
     await waitFor(() => document.querySelector('[data-aiwt="body-translation"]') === null);
     expect(session.getState().progress.total).toBe(0);
+  });
+});
+
+describe('PageTranslationSession 表格与数字', () => {
+  it('表格单元格的译文写在单元格内部，不改变表格结构', async () => {
+    setPage(
+      '<table><tbody><tr><td>Rank one cell text goes here.</td><td>Another cell with English text.</td></tr></tbody></table>',
+    );
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const row = document.querySelector('tr');
+    // 行里只有单元格：译文块插在 tr 里会撑坏整张表的列宽。
+    expect([...(row?.children ?? [])].map((child) => child.tagName)).toEqual(['TD', 'TD']);
+
+    const cells = document.querySelectorAll('td');
+    expect(cells[0]?.querySelector('[data-aiwt="body-translation"]')?.textContent).toContain('Rank one cell');
+    expect(cells[1]?.querySelector('[data-aiwt="body-translation"]')).not.toBeNull();
+  });
+
+  it('数字、版本号与日期不进入可翻译文本，译文里的数字保持原样', async () => {
+    setPage('<main><p>Released 2026-11-14 with 1,007,405 votes at 5.2 percent.</p></main>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine);
+
+    await session.start();
+    const [request] = manual.requests;
+    const unit = request?.units[0];
+    if (!request || !unit) throw new Error('缺少翻译请求');
+
+    // 数字被占位标记保护起来，模型没有机会改写它们。
+    const plain = unit.text.replace(/⟦[^⟧]*⟧/g, '');
+    expect(plain).not.toMatch(/\d/);
+    expect(unit.text.match(/⟦o\d+⟧/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+
+    succeed(manual, 0, 0, unit.text);
+    complete(manual, 0);
+    await waitFor(() => session.getState().status === 'completed');
+
+    expect(bodyTranslations()).toEqual(['Released 2026-11-14 with 1,007,405 votes at 5.2 percent.']);
   });
 });
 
