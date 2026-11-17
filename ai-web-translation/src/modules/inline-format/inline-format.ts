@@ -54,12 +54,32 @@ export function isHiddenElement(element: Element): boolean {
   }
   const view = element.ownerDocument?.defaultView;
   if (!view) return false;
-  try {
-    const computed = view.getComputedStyle(element);
-    return computed.display === 'none' || computed.visibility === 'hidden' || computed.visibility === 'collapse';
-  } catch {
-    return false;
+
+  // 隐藏容器的后代：getComputedStyle 只看元素自身，display 不会从祖先继承。
+  // Chrome 提供 checkVisibility，可以直接判断元素是否参与渲染；其他环境回退到逐层检查。
+  const checkVisibility = (element as Element & {
+    checkVisibility?: (options?: { checkVisibilityCSS?: boolean }) => boolean;
+  }).checkVisibility;
+  if (typeof checkVisibility === 'function') {
+    try {
+      return !checkVisibility.call(element, { checkVisibilityCSS: true });
+    } catch {
+      // 回退到逐层检查。
+    }
   }
+
+  for (let ancestor: Element | null = element; ancestor; ancestor = ancestor.parentElement) {
+    if (ancestor.hasAttribute('hidden')) return true;
+    try {
+      const computed = view.getComputedStyle(ancestor);
+      if (computed.display === 'none' || computed.visibility === 'hidden' || computed.visibility === 'collapse') {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 function shouldSkipElement(element: Element): boolean {
@@ -70,6 +90,11 @@ function shouldSkipElement(element: Element): boolean {
     return true;
   }
   return false;
+}
+
+/** 扫描时整体跳过的元素（图标、输入框、脚本等）；界面文本渲染时需原样保留。 */
+export function isSkippedElement(element: Element): boolean {
+  return shouldSkipElement(element);
 }
 
 /**

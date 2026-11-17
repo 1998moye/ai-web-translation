@@ -35,9 +35,18 @@ test('点击悬浮按钮翻译正文，保留原文并可恢复', async ({ page 
 test('表单标签翻译，输入内容与页面行为不受影响', async ({ page }) => {
   await page.locator('.aiwt-fab-main').click();
 
-  await expect(page.locator('label[for="email"]')).toHaveText('【模拟译文】Email address');
+  const label = page.locator('form label');
+  await expect(label).toContainText('【模拟译文】Email address');
+  await expect(label.locator('#email')).toHaveCount(1);
   await expect(page.locator('#email')).toHaveValue('typed@example.com');
-  await expect(page.locator('form button[type="submit"]')).toHaveText('【模拟译文】Subscribe');
+
+  const submit = page.locator('form button[type="submit"]');
+  await expect(submit).toContainText('【模拟译文】Subscribe');
+  await expect(submit.locator('svg')).toHaveCount(1);
+
+  await page.locator('.aiwt-fab-main').click();
+  await expect(label).toContainText('Email address');
+  await expect(label.locator('#email')).toHaveCount(1);
 });
 
 test('界面文本译文优先，悬停可查看原文，并可恢复', async ({ page }) => {

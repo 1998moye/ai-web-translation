@@ -79,6 +79,23 @@ describe('PageTranslationSession 正文翻译', () => {
     expect(document.querySelectorAll('[data-aiwt="body-translation"]')).toHaveLength(1);
   });
 
+  it('隐藏容器内的英文不会提交，可见内容照常翻译', async () => {
+    setPage(
+      '<div style="display:none"><p>Hidden English paragraph inside a collapsed panel.</p></div>' +
+        '<section hidden><p>Hidden English paragraph inside a hidden section.</p></section>' +
+        '<p>The visible English paragraph should be translated.</p>',
+    );
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const submitted = engine.requests.flatMap((request) => request.units.map((unit) => unit.text));
+    expect(submitted).toEqual(['The visible English paragraph should be translated.']);
+    expect(bodyTranslations()).toHaveLength(1);
+  });
+
   it('非英文语言单元不提交', async () => {
     setPage('<p>Le chat est noir et les chiens sont grands.</p><p>The quick brown fox.</p>');
     const engine = new FakeTranslationEngine();
@@ -164,6 +181,33 @@ describe('PageTranslationSession 界面文本', () => {
     expect(link?.hasAttribute('title')).toBe(false);
     expect(link?.hasAttribute('data-aiwt-translated')).toBe(false);
     expect(document.querySelector('button')?.textContent).toBe('Sign in');
+  });
+
+  it('翻译表单标签和带图标的按钮时保留输入框与图标', async () => {
+    setPage(
+      '<form><label>Search <input id="q" value="typed" /></label>' +
+        '<button type="button"><svg aria-hidden="true"></svg> Save changes</button></form>',
+    );
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const label = document.querySelector('label');
+    const input = document.querySelector<HTMLInputElement>('#q');
+    const button = document.querySelector('button');
+    expect(label?.textContent).toBe('【模拟译文】Search');
+    expect(input).not.toBeNull();
+    expect(input?.value).toBe('typed');
+    expect(label?.contains(input)).toBe(true);
+    expect(button?.textContent).toBe('【模拟译文】Save changes');
+    expect(button?.querySelector('svg')).not.toBeNull();
+
+    session.restore();
+    expect(label?.textContent).toBe('Search ');
+    expect(label?.contains(input)).toBe(true);
+    expect(button?.querySelector('svg')).not.toBeNull();
   });
 
   it('界面文本原文变化后重新翻译，不沿用旧译文', async () => {

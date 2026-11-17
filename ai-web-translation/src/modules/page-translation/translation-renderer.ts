@@ -1,6 +1,7 @@
 import {
   createInlineNodes,
   formatPlainText,
+  isSkippedElement,
   OWN_NODE_ATTRIBUTE,
   type InlineFormat,
 } from '../inline-format/inline-format';
@@ -84,17 +85,28 @@ export function renderInterfaceTranslation(
   if (nodes.length === 0) return null;
 
   const originalNodes = Array.from(element.childNodes);
+  // 输入框、图标等被扫描跳过的子元素不属于译文，替换文本时必须原位保留。
+  const preserved = originalNodes
+    .map((node, index) => ({ node, index }))
+    .filter(({ node }) => node.nodeType === Node.ELEMENT_NODE && isSkippedElement(node as Element));
+
   const hadTitle = element.hasAttribute('title');
   const originalTitle = element.getAttribute('title');
 
   element.replaceChildren(...nodes);
+  for (const { node, index } of preserved) {
+    const reference = element.childNodes[Math.min(index, element.childNodes.length)] ?? null;
+    element.insertBefore(node, reference);
+  }
+
+  const renderedNodes = Array.from(element.childNodes);
   element.setAttribute('data-aiwt-translated', 'true');
   element.setAttribute('title', formatPlainText(originalText));
 
   return {
-    nodes,
+    nodes: renderedNodes,
     restore(): void {
-      if (!isRendering(element, nodes)) return;
+      if (!isRendering(element, renderedNodes)) return;
       element.replaceChildren(...originalNodes);
       element.removeAttribute('data-aiwt-translated');
       if (hadTitle && originalTitle !== null) element.setAttribute('title', originalTitle);
