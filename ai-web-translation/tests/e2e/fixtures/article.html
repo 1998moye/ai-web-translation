@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Building a translation extension</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 40px auto;
+        max-width: 720px;
+        line-height: 1.6;
+      }
+      nav {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+      }
+      /* 故意设置和插件按钮冲突的样式，用于验证 Shadow DOM 隔离。 */
+      button {
+        border: 0;
+        border-radius: 0;
+        background: hotpink;
+        color: white;
+        padding: 4px 8px;
+      }
+      .note {
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a href="/article.html">Documentation</a>
+      <button type="button">Sign in</button>
+    </nav>
+    <main>
+      <h1>Building a translation extension</h1>
+      <h2>Why translate pages</h2>
+      <p id="first">
+        The quick brown fox jumps over the lazy dog, and this paragraph explains why page translation matters.
+      </p>
+      <p id="second">
+        Read <a href="/article.html">the documentation</a> and run <code>npm install</code> before you start the project.
+      </p>
+      <p id="chinese">这是一段已经存在的中文内容，不应该被翻译。</p>
+      <p id="french">Le chat est noir et les chiens sont grands dans cette maison.</p>
+      <p class="note" id="last">Another English paragraph about the extension and its configuration.</p>
+      <form class="signup">
+        <label for="email">Email address</label>
+        <input id="email" type="email" name="email" value="typed@example.com" />
+        <button type="submit">Subscribe</button>
+      </form>
+    </main>
+  </body>
+</html>

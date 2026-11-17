@@ -1,0 +1,12 @@
+node_modules/
+.output/
+.output-fake/
+.wxt/
+stats.html
+*.log
+.env
+.env.local
+.DS_Store
+test-results/
+playwright-report/
+blob-report/

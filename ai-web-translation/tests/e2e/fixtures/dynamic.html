@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Dynamic page</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 40px auto;
+        max-width: 720px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p id="initial">The initial paragraph of the dynamic page.</p>
+      <p id="changing">This paragraph will change after a moment.</p>
+    </main>
+    <script>
+      window.__fixtureEvents = [];
+
+      setTimeout(() => {
+        const paragraph = document.createElement('p');
+        paragraph.id = 'added';
+        paragraph.textContent = 'A paragraph added by the website after the page loaded.';
+        document.querySelector('main').appendChild(paragraph);
+        window.__fixtureEvents.push('added');
+      }, 800);
+
+      setTimeout(() => {
+        document.getElementById('changing').textContent =
+          'This paragraph was replaced with new English text.';
+        window.__fixtureEvents.push('changed');
+      }, 1600);
+    </script>
+  </body>
+</html>

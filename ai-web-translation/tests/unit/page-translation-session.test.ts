@@ -1,0 +1,458 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import type { TranslationEngine } from '@/modules/translation-contract/translation-engine';
+import { PageTranslationSession, type PageTranslationSessionOptions } from '@/modules/page-translation/page-translation-session';
+import { FakeTranslationEngine } from '@/modules/translation-fake/fake-translation-engine';
+import { createFakeProfileCatalog } from '@/modules/translation-fake/fake-profile-catalog';
+import { setPage, waitFor } from './helpers/dom';
+import { complete, createManualEngine, emitRaw, fail, succeed } from './helpers/manual-engine';
+
+const activeSessions: PageTranslationSession[] = [];
+
+function createSession(
+  engine: TranslationEngine,
+  options: Partial<PageTranslationSessionOptions> = {},
+): PageTranslationSession {
+  const session = new PageTranslationSession({
+    engine,
+    profiles: createFakeProfileCatalog(),
+    mutationDebounceMs: 5,
+    observeMutations: false,
+    ...options,
+  });
+  activeSessions.push(session);
+  return session;
+}
+
+afterEach(() => {
+  for (const session of activeSessions.splice(0)) session.dispose();
+});
+
+const bodyTranslations = (): string[] =>
+  [...document.querySelectorAll('[data-aiwt="body-translation"]')].map((node) => node.textContent ?? '');
+
+describe('PageTranslationSession 正文翻译', () => {
+  it('在每段原文后插入对应译文，保留英文原文', async () => {
+    setPage('<main><p>The quick brown fox jumps over the lazy dog.</p><p>Another English sentence about the project.</p></main>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    expect(bodyTranslations()).toEqual([
+      '【模拟译文】The quick brown fox jumps over the lazy dog.',
+      '【模拟译文】Another English sentence about the project.',
+    ]);
+    expect(document.querySelectorAll('p')[0]?.textContent).toContain('The quick brown fox');
+    expect(session.getState().progress).toMatchObject({ total: 2, succeeded: 2, failed: 0 });
+  });
+
+  it('乱序返回时译文仍对应各自段落', async () => {
+    setPage(
+      '<main><p>First paragraph of the page.</p><p>Second paragraph of the page.</p><p>Third paragraph of the page.</p></main>',
+    );
+    const engine = new FakeTranslationEngine({
+      delayForUnit: (unit) => (unit.text.startsWith('Third') ? 0 : unit.text.startsWith('Second') ? 20 : 40),
+    });
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    expect(bodyTranslations()).toEqual([
+      '【模拟译文】First paragraph of the page.',
+      '【模拟译文】Second paragraph of the page.',
+      '【模拟译文】Third paragraph of the page.',
+    ]);
+  });
+
+  it('只提交英文单元，已有中文与纯符号不产生请求', async () => {
+    setPage('<p>这是一段中文内容。</p><p>The quick brown fox.</p><p>12345 6789</p>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const submitted = engine.requests.flatMap((request) => request.units.map((unit) => unit.text));
+    expect(submitted).toEqual(['The quick brown fox.']);
+    expect(document.querySelectorAll('[data-aiwt="body-translation"]')).toHaveLength(1);
+  });
+
+  it('非英文语言单元不提交', async () => {
+    setPage('<p>Le chat est noir et les chiens sont grands.</p><p>The quick brown fox.</p>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const submitted = engine.requests.flatMap((request) => request.units.map((unit) => unit.text));
+    expect(submitted).toEqual(['The quick brown fox.']);
+  });
+
+  it('行内代码不进入请求，译文里保留代码元素', async () => {
+    setPage('<p>Run <code>npm install</code> to set up the project.</p>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const submitted = engine.requests[0]?.units[0]?.text ?? '';
+    expect(submitted).not.toContain('npm install');
+    expect(submitted).toContain('⟦o1⟧');
+
+    const block = document.querySelector('[data-aiwt="body-translation"]');
+    expect(block?.querySelector('code')?.textContent).toBe('npm install');
+  });
+
+  it('没有默认配置时不发请求并给出脱敏说明', async () => {
+    setPage('<p>The quick brown fox.</p>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine, { profiles: createFakeProfileCatalog([]) });
+
+    const state = await session.start();
+
+    expect(state.status).toBe('failed');
+    expect(state.error?.code).toBe('profile-unavailable');
+    expect(state.error?.message).toContain('翻译服务配置');
+    expect(engine.requests).toHaveLength(0);
+  });
+
+  it('正文请求携带页面标题、小节标题前一段原文，界面文本不强制附带上下文', async () => {
+    setPage(
+      '<main><h2>Setup</h2><p>The first paragraph of the guide.</p><p>The second paragraph of the guide.</p></main><button>Continue</button>',
+      { title: 'Guide' },
+    );
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine, { batchUnitLimit: 1 });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    expect(engine.requests[0]?.context).toEqual({ pageTitle: 'Guide', sectionTitle: 'Setup' });
+    expect(engine.requests[2]?.context).toMatchObject({
+      pageTitle: 'Guide',
+      sectionTitle: 'Setup',
+      previousText: 'The first paragraph of the guide.',
+    });
+    const interfaceRequest = engine.requests.find((request) =>
+      request.units.some((unit) => unit.kind === 'interface'),
+    );
+    expect(interfaceRequest?.context).toBeUndefined();
+  });
+});
+
+describe('PageTranslationSession 界面文本', () => {
+  it('界面文本译文优先，悬停可查看原文，并可恢复', async () => {
+    setPage('<nav><a href="/docs">Documentation</a></nav><button>Sign in</button>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const link = document.querySelector('a');
+    expect(link?.textContent).toBe('【模拟译文】Documentation');
+    expect(link?.getAttribute('title')).toBe('Documentation');
+    expect(link?.getAttribute('href')).toBe('/docs');
+
+    session.restore();
+
+    expect(link?.textContent).toBe('Documentation');
+    expect(link?.hasAttribute('title')).toBe(false);
+    expect(link?.hasAttribute('data-aiwt-translated')).toBe(false);
+    expect(document.querySelector('button')?.textContent).toBe('Sign in');
+  });
+
+  it('界面文本原文变化后重新翻译，不沿用旧译文', async () => {
+    setPage('<button>Sign in</button>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine, { observeMutations: true });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const button = document.querySelector('button');
+    if (!button) throw new Error('缺少按钮');
+    button.textContent = 'Sign out';
+
+    await waitFor(() => button.textContent === '【模拟译文】Sign out');
+    expect(engine.requests).toHaveLength(2);
+    expect(document.querySelectorAll('[data-aiwt="body-translation"]')).toHaveLength(0);
+  });
+});
+
+describe('PageTranslationSession 动态内容与原文变化', () => {
+  it('翻译动态新增内容，未变化内容不重复提交', async () => {
+    setPage('<main><p>The first paragraph of the page.</p></main>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine, { observeMutations: true });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const paragraph = document.createElement('p');
+    paragraph.textContent = 'A dynamically added paragraph of text.';
+    document.querySelector('main')?.append(paragraph);
+
+    await waitFor(() => session.getState().progress.total === 2 && session.getState().status === 'completed');
+    expect(bodyTranslations()).toHaveLength(2);
+
+    document.querySelector('main')?.append(document.createElement('span'));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    const submitted = engine.requests.flatMap((request) => request.units.map((unit) => unit.text));
+    expect(submitted.filter((text) => text === 'The first paragraph of the page.')).toHaveLength(1);
+    expect(submitted.filter((text) => text.includes('dynamically added'))).toHaveLength(1);
+  });
+
+  it('动态新增界面文本也会被翻译', async () => {
+    setPage('<nav><a href="/docs">Documentation</a></nav>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine, { observeMutations: true });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const button = document.createElement('button');
+    button.textContent = 'Download now';
+    document.querySelector('nav')?.append(button);
+
+    await waitFor(() => session.getState().progress.total === 2 && session.getState().status === 'completed');
+    expect(button.textContent).toBe('【模拟译文】Download now');
+  });
+
+  it('原文变化使旧译文失效，迟到的旧结果不会渲染', async () => {
+    setPage('<main><p>Old text of the paragraph.</p></main>');
+    const engine = new FakeTranslationEngine({
+      delayForUnit: (unit) => (unit.text.includes('Old') ? 80 : 0),
+    });
+    const session = createSession(engine, { observeMutations: true });
+
+    await session.start();
+    const paragraph = document.querySelector('p');
+    if (!paragraph) throw new Error('缺少段落');
+    paragraph.textContent = 'New text of the same paragraph.';
+
+    await waitFor(() => bodyTranslations().some((text) => text.includes('New text')));
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    expect(bodyTranslations()).toEqual(['【模拟译文】New text of the same paragraph.']);
+  });
+
+  it('译文被站点移除但原文未变时直接重渲染，不重复请求', async () => {
+    setPage('<main><p>Stable English paragraph.</p></main>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine, { observeMutations: true });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    document.querySelector('[data-aiwt="body-translation"]')?.remove();
+    document.querySelector('main')?.append(document.createElement('span'));
+
+    await waitFor(() => document.querySelector('[data-aiwt="body-translation"]') !== null);
+    expect(engine.requests).toHaveLength(1);
+  });
+
+  it('原文节点被移除时清理对应译文', async () => {
+    setPage('<main><p>Paragraph that will be removed.</p></main>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine, { observeMutations: true });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    document.querySelector('p')?.remove();
+    await waitFor(() => document.querySelector('[data-aiwt="body-translation"]') === null);
+    expect(session.getState().progress.total).toBe(0);
+  });
+});
+
+describe('PageTranslationSession 失败、取消与恢复', () => {
+  it('部分失败保留英文并可只重试失败单元', async () => {
+    setPage('<main><p>Good paragraph one.</p><p>Bad paragraph two.</p><p>Good paragraph three.</p></main>');
+    let failBad = true;
+    const engine = new FakeTranslationEngine({
+      translate: (unit) => (unit.text.includes('Bad') && failBad ? null : `【模拟译文】${unit.text}`),
+    });
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'partial-failure');
+
+    expect(bodyTranslations()).toHaveLength(2);
+    expect(document.querySelector('[data-aiwt="failure"]')).not.toBeNull();
+    expect(document.querySelectorAll('p')[1]?.textContent).toContain('Bad paragraph two.');
+    expect(session.getState().progress).toMatchObject({ succeeded: 2, failed: 1 });
+
+    failBad = false;
+    const requestCount = engine.requests.length;
+    session.retryFailed();
+
+    await waitFor(() => session.getState().status === 'completed');
+    expect(engine.requests.length).toBe(requestCount + 1);
+    expect(engine.requests.at(-1)?.units).toHaveLength(1);
+    expect(engine.requests.at(-1)?.units[0]?.text).toContain('Bad');
+    expect(document.querySelector('[data-aiwt="failure"]')).toBeNull();
+    expect(bodyTranslations()).toHaveLength(3);
+  });
+
+  it('取消后保留已成功译文，迟到的结果不再渲染', async () => {
+    setPage('<main><p>Fast paragraph one.</p><p>Slow paragraph two.</p><p>Slow paragraph three.</p></main>');
+    const engine = new FakeTranslationEngine({
+      delayForUnit: (unit) => (unit.text.startsWith('Fast') ? 0 : 80),
+    });
+    const session = createSession(engine);
+
+    await session.start();
+    await waitFor(() => session.getState().progress.succeeded === 1);
+
+    session.cancel();
+    expect(session.getState().status).toBe('cancelled');
+
+    await new Promise((resolve) => setTimeout(resolve, 140));
+    expect(bodyTranslations()).toEqual(['【模拟译文】Fast paragraph one.']);
+    expect(session.getState().status).toBe('cancelled');
+  });
+
+  it('恢复原文会移除全部译文并停止处理新增内容', async () => {
+    setPage('<main><p>The original English paragraph.</p></main><button>Continue</button>');
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine, { observeMutations: true });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+    expect(document.querySelectorAll('[data-aiwt]')).not.toHaveLength(0);
+
+    session.restore();
+    expect(session.getState().status).toBe('restored');
+    expect(document.querySelectorAll('[data-aiwt]')).toHaveLength(0);
+    expect(document.querySelector('button')?.textContent).toBe('Continue');
+
+    const paragraph = document.createElement('p');
+    paragraph.textContent = 'Content added after the session ended.';
+    document.body.append(paragraph);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(engine.requests).toHaveLength(1);
+    expect(document.querySelectorAll('[data-aiwt]')).toHaveLength(0);
+  });
+});
+
+describe('PageTranslationSession 单元 ID 校验', () => {
+  it('缺失结果的单元不会被猜测性渲染', async () => {
+    setPage('<main><p>The only paragraph in this page.</p></main>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine);
+
+    await session.start();
+    complete(manual, 0);
+
+    await waitFor(() => session.getState().status === 'partial-failure');
+    expect(document.querySelector('[data-aiwt="body-translation"]')).toBeNull();
+    expect(document.querySelector('[data-aiwt="failure"]')).not.toBeNull();
+  });
+
+  it('重复 ID 只渲染第一次结果', async () => {
+    setPage('<main><p>The only paragraph in this page.</p></main>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine);
+
+    await session.start();
+    succeed(manual, 0, 0, '第一份译文');
+    succeed(manual, 0, 0, '重复的译文');
+    complete(manual, 0);
+
+    await waitFor(() => session.getState().status === 'completed');
+    expect(bodyTranslations()).toEqual(['第一份译文']);
+  });
+
+  it('未知 ID 与会话不匹配的事件被忽略', async () => {
+    setPage('<main><p>The only paragraph in this page.</p></main>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine);
+
+    await session.start();
+    const request = manual.requests[0];
+    if (!request) throw new Error('缺少请求');
+
+    emitRaw(manual, 0, {
+      type: 'unit-succeeded',
+      sessionId: 'other-session',
+      requestId: request.requestId,
+      unitId: request.units[0]?.id ?? '',
+      text: '不该渲染',
+    });
+    emitRaw(manual, 0, {
+      type: 'unit-succeeded',
+      sessionId: request.sessionId,
+      requestId: 'other-request',
+      unitId: request.units[0]?.id ?? '',
+      text: '也不该渲染',
+    });
+    emitRaw(manual, 0, {
+      type: 'unit-succeeded',
+      sessionId: request.sessionId,
+      requestId: request.requestId,
+      unitId: 'unknown-unit',
+      text: '未知单元',
+    });
+    succeed(manual, 0, 0, '正确译文');
+    complete(manual, 0);
+
+    await waitFor(() => session.getState().status === 'completed');
+    expect(bodyTranslations()).toEqual(['正确译文']);
+  });
+
+  it('空译文按失败处理', async () => {
+    setPage('<main><p>The only paragraph in this page.</p></main>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine);
+
+    await session.start();
+    succeed(manual, 0, 0, '   ');
+    complete(manual, 0);
+
+    await waitFor(() => session.getState().status === 'partial-failure');
+    expect(document.querySelector('[data-aiwt="body-translation"]')).toBeNull();
+    expect(document.querySelector('[data-aiwt="failure"]')).not.toBeNull();
+  });
+
+  it('事件流抛错时批次内单元进入失败状态', async () => {
+    setPage('<main><p>The only paragraph in this page.</p></main>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine);
+
+    await session.start();
+    fail(manual, 0, 0);
+    complete(manual, 0);
+
+    await waitFor(() => session.getState().status === 'partial-failure');
+    expect(document.querySelector('[data-aiwt="failure"]')).not.toBeNull();
+  });
+});
+
+describe('PageTranslationSession 配置快照', () => {
+  it('会话首次请求固定配置，设置变化只影响新会话', async () => {
+    setPage('<main><p>The first paragraph of the page.</p></main>');
+    const catalog = createFakeProfileCatalog();
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine, { profiles: catalog, observeMutations: true });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+    expect(engine.requests[0]?.profileId).toBe('fake-default');
+
+    catalog.setDefaultProfile('fake-alternate');
+
+    const paragraph = document.createElement('p');
+    paragraph.textContent = 'Another paragraph added later.';
+    document.querySelector('main')?.append(paragraph);
+    await waitFor(() => session.getState().progress.total === 2);
+
+    expect(engine.requests.every((request) => request.profileId === 'fake-default')).toBe(true);
+  });
+});

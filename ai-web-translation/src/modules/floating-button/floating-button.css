@@ -1,0 +1,232 @@
+/* 悬浮翻译按钮：全部样式在 Shadow DOM 内，避免污染网页或被网页样式影响。 */
+.aiwt-fab {
+  position: fixed;
+  z-index: 2147483000;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1f2937;
+  user-select: none;
+}
+
+.aiwt-fab[data-aiwt-dragging='true'] {
+  cursor: grabbing;
+}
+
+.aiwt-fab-main {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 50%;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22);
+  cursor: grab;
+  touch-action: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.aiwt-fab-main:hover {
+  transform: scale(1.06);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+}
+
+.aiwt-fab-main:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.aiwt-fab-glyph {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.aiwt-fab-spinner {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: #2563eb;
+  animation: aiwt-spin 0.9s linear infinite;
+}
+
+@keyframes aiwt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.aiwt-fab[data-aiwt-phase='completed'] .aiwt-fab-main {
+  border-color: rgba(22, 163, 74, 0.6);
+}
+
+.aiwt-fab[data-aiwt-phase='partial-failure'] .aiwt-fab-main {
+  border-color: rgba(217, 119, 6, 0.7);
+}
+
+.aiwt-fab-alert {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d97706;
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.aiwt-fab-badge {
+  position: absolute;
+  right: 0;
+  top: -22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.aiwt-fab-panel {
+  position: absolute;
+  right: 64px;
+  bottom: 0;
+  width: 236px;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(6px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+}
+
+.aiwt-fab:hover .aiwt-fab-panel,
+.aiwt-fab:focus-within .aiwt-fab-panel,
+.aiwt-fab[data-aiwt-dragging='true'] .aiwt-fab-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+.aiwt-fab-status {
+  margin: 0 0 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.aiwt-fab-notice {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+}
+
+.aiwt-fab-progress-text {
+  margin: 0 0 8px;
+  color: #475569;
+  font-size: 11px;
+}
+
+.aiwt-fab-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aiwt-fab-actions button {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.aiwt-fab-actions button:hover {
+  background: #eef2f7;
+}
+
+.aiwt-fab-actions button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.aiwt-fab-health {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.aiwt-fab-hint {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.aiwt-fab-health[data-aiwt-health='false'] {
+  color: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .aiwt-fab {
+    color: #e2e8f0;
+  }
+
+  .aiwt-fab-main {
+    background: #111827;
+    color: #e5e7eb;
+    border-color: rgba(148, 163, 184, 0.35);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  }
+
+  .aiwt-fab-panel {
+    background: #0f172a;
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+  }
+
+  .aiwt-fab-progress-text,
+  .aiwt-fab-health,
+  .aiwt-fab-hint {
+    color: #94a3b8;
+  }
+
+  .aiwt-fab-actions button {
+    background: #1e293b;
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+  }
+
+  .aiwt-fab-actions button:hover {
+    background: #263449;
+  }
+
+  .aiwt-fab-badge {
+    background: #422006;
+    color: #fcd34d;
+  }
+
+  .aiwt-fab-notice {
+    background: #450a0a;
+    color: #fca5a5;
+  }
+}
