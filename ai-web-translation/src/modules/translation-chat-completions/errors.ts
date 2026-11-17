@@ -1,5 +1,5 @@
 import { TranslationError } from '../translation-contract/sanitized-error';
-import type { HttpFailureReason, HttpOutcome } from './http-adapter';
+import type { HttpFailureReason } from './http-adapter';
 
 /** 传输失败：只有网络问题可重试；超时与取消按配置与用户操作处理。 */
 export function errorForHttpFailure(reason: HttpFailureReason): TranslationError {
@@ -64,8 +64,4 @@ export function parseRetryAfterMs(headers: Record<string, string>): number | und
   if (!Number.isNaN(timestamp)) return Math.max(0, timestamp - Date.now());
 
   return undefined;
-}
-
-export function isSuccessStatus(outcome: HttpOutcome): boolean {
-  return outcome.ok && outcome.status >= 200 && outcome.status < 300;
 }

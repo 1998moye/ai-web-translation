@@ -1,4 +1,5 @@
 import { createProfileId, type ProfileId } from '@/shared/ids';
+import { createSerialQueue, type SerialQueue } from '@/shared/serial-queue';
 import type { KeyValueStorage } from '../site-preferences/key-value-storage';
 import {
   clampInteger,
@@ -48,7 +49,7 @@ export interface TranslationProfileRepository {
  * 写入串行执行，避免同一设置页里连续保存时互相覆盖。
  */
 export class StoredTranslationProfiles implements TranslationProfileRepository {
-  private queue: Promise<unknown> = Promise.resolve();
+  private readonly queue: SerialQueue = createSerialQueue();
 
   constructor(private readonly storage: KeyValueStorage) {}
 
@@ -72,7 +73,7 @@ export class StoredTranslationProfiles implements TranslationProfileRepository {
   async create(draft: TranslationProfileDraft): Promise<TranslationProfile> {
     const normalized = prepareDraft(draft);
 
-    return this.enqueue(async () => {
+    return this.queue.run(async () => {
       const state = await this.read();
       const profile: TranslationProfile = { ...normalized, id: createProfileId() };
       await this.write({
@@ -86,7 +87,7 @@ export class StoredTranslationProfiles implements TranslationProfileRepository {
   async update(id: ProfileId, draft: TranslationProfileDraft): Promise<TranslationProfile> {
     const normalized = prepareDraft(draft);
 
-    return this.enqueue(async () => {
+    return this.queue.run(async () => {
       const state = await this.read();
       if (!state.profiles.some((profile) => profile.id === id)) {
         throw new Error('翻译服务配置不存在。');
@@ -101,7 +102,7 @@ export class StoredTranslationProfiles implements TranslationProfileRepository {
   }
 
   async remove(id: ProfileId): Promise<void> {
-    await this.enqueue(async () => {
+    await this.queue.run(async () => {
       const state = await this.read();
       const profiles = state.profiles.filter((profile) => profile.id !== id);
       // 默认选择不允许指向已删除的配置：删除默认配置时回落到剩余的第一份配置。
@@ -114,7 +115,7 @@ export class StoredTranslationProfiles implements TranslationProfileRepository {
   }
 
   async setDefault(id: ProfileId): Promise<void> {
-    await this.enqueue(async () => {
+    await this.queue.run(async () => {
       const state = await this.read();
       if (!state.profiles.some((profile) => profile.id === id)) {
         throw new Error('翻译服务配置不存在。');
@@ -131,14 +132,6 @@ export class StoredTranslationProfiles implements TranslationProfileRepository {
     await this.storage.write(STORED_PROFILES_KEY, state);
   }
 
-  private enqueue<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.queue.then(task, task);
-    this.queue = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    return run;
-  }
 }
 
 function prepareDraft(draft: TranslationProfileDraft): TranslationProfileDraft {

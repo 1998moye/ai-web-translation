@@ -1,3 +1,4 @@
+import { createSerialQueue, type SerialQueue } from '@/shared/serial-queue';
 import type { KeyValueStorage } from '../site-preferences/key-value-storage';
 import { createCacheKey, type TranslationCacheDescriptor } from './cache-key';
 
@@ -37,7 +38,7 @@ export interface TranslationCache {
 export class StoredTranslationCache implements TranslationCache {
   private readonly maxEntries: number;
   private readonly now: () => number;
-  private queue: Promise<unknown> = Promise.resolve();
+  private readonly queue: SerialQueue = createSerialQueue();
 
   constructor(
     private readonly storage: KeyValueStorage,
@@ -60,7 +61,7 @@ export class StoredTranslationCache implements TranslationCache {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    await this.enqueue(async () => {
+    await this.queue.run(async () => {
       const state = await this.readState();
       const key = createCacheKey(descriptor);
       state.entries[key] = { source: descriptor.sourceText.trim(), text: trimmed, storedAt: this.now() };
@@ -69,7 +70,7 @@ export class StoredTranslationCache implements TranslationCache {
   }
 
   async clear(): Promise<void> {
-    await this.enqueue(async () => {
+    await this.queue.run(async () => {
       await this.storage.write(TRANSLATION_CACHE_KEY, { entries: {} } satisfies CacheState);
     });
   }
@@ -82,14 +83,6 @@ export class StoredTranslationCache implements TranslationCache {
     return normalizeCacheState(await this.storage.read<unknown>(TRANSLATION_CACHE_KEY));
   }
 
-  private enqueue<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.queue.then(task, task);
-    this.queue = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    return run;
-  }
 }
 
 export function normalizeCacheState(value: unknown): CacheState {

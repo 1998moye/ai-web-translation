@@ -63,10 +63,6 @@ export function validateProfileDraft(draft: TranslationProfileDraft): ProfileVal
   return issues;
 }
 
-export function isValidProfileDraft(draft: TranslationProfileDraft): boolean {
-  return validateProfileDraft(draft).length === 0;
-}
-
 function validateHeaders(headers: Record<string, string>): ProfileValidationIssue[] {
   const issues: ProfileValidationIssue[] = [];
 

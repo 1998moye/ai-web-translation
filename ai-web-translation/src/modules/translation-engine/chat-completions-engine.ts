@@ -90,7 +90,7 @@ export class ChatCompletionsTranslationEngine implements TranslationEngine {
       // 缓存命中直接返回：不进入分批，也不占用翻译服务并发。
       const misses: TranslationUnit[] = [];
       for (const unit of request.units) {
-        const cached = await this.deps.cache.get(this.describe(snapshot, unit.text));
+        const cached = await this.deps.cache.get(this.cacheDescriptorFor(snapshot, unit.text));
         if (cached === null) {
           misses.push(unit);
           continue;
@@ -206,7 +206,7 @@ export class ChatCompletionsTranslationEngine implements TranslationEngine {
           continue;
         }
         // 只有通过单元 ID 校验的译文才写入缓存。
-        await this.deps.cache.put(this.describe(snapshot, unit.text), text);
+        await this.deps.cache.put(this.cacheDescriptorFor(snapshot, unit.text), text);
         events.push(succeeded(request, unit.id, text));
       }
 
@@ -228,7 +228,7 @@ export class ChatCompletionsTranslationEngine implements TranslationEngine {
     await sleep(ms, signal);
   }
 
-  private describe(snapshot: SessionSnapshot, sourceText: string): TranslationCacheDescriptor {
+  private cacheDescriptorFor(snapshot: SessionSnapshot, sourceText: string): TranslationCacheDescriptor {
     return {
       sourceText,
       sourceLanguage: CACHE_SOURCE_LANGUAGE,

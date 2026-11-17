@@ -1,4 +1,5 @@
 import { browser } from 'wxt/browser';
+import { AsyncQueue } from '@/shared/async-queue';
 import type { SessionId } from '@/shared/ids';
 import type { StartTranslationRequest, TranslationEngine } from '../translation-contract/translation-engine';
 import type { TranslationEvent } from '../translation-contract/types';
@@ -63,50 +64,13 @@ function isClosedPortMessage(message: unknown): message is ClosedPortMessage {
   return typeof message === 'object' && message !== null && (message as { type?: unknown }).type === 'closed';
 }
 
-class EventQueue implements AsyncIterable<TranslationEvent> {
-  private readonly buffer: TranslationEvent[] = [];
-  private waiter: (() => void) | null = null;
-  private ended = false;
-
-  push(event: TranslationEvent): void {
-    if (this.ended) return;
-    this.buffer.push(event);
-    this.wake();
-  }
-
-  end(): void {
-    this.ended = true;
-    this.wake();
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterator<TranslationEvent> {
-    while (true) {
-      const next = this.buffer.shift();
-      if (next) {
-        yield next;
-        continue;
-      }
-      if (this.ended) return;
-      await new Promise<void>((resolve) => {
-        this.waiter = resolve;
-      });
-    }
-  }
-
-  private wake(): void {
-    const waiter = this.waiter;
-    this.waiter = null;
-    waiter?.();
-  }
-}
-
 /**
  * 内容脚本侧的 Translation Engine Adapter：只传配置 ID 和翻译单元，
  * 请求构造与密钥都留在后台。
  */
 export class MessagingTranslationEngine implements TranslationEngine {
   translate(request: StartTranslationRequest): AsyncIterable<TranslationEvent> {
-    const queue = new EventQueue();
+    const queue = new AsyncQueue<TranslationEvent>();
     let port: PortLike | null = null;
 
     try {
@@ -139,7 +103,7 @@ export class MessagingTranslationEngine implements TranslationEngine {
   }
 }
 
-async function* withDisconnect(queue: EventQueue, port: PortLike): AsyncGenerator<TranslationEvent> {
+async function* withDisconnect(queue: AsyncQueue<TranslationEvent>, port: PortLike): AsyncGenerator<TranslationEvent> {
   try {
     yield* queue;
   } finally {
