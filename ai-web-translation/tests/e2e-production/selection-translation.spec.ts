@@ -164,8 +164,7 @@ test('部分单元缺失译文时成功结果仍然可见', async ({ page, exten
   await expect(units.nth(1)).toContainText('模拟译文：');
 });
 
-test('翻译服务认证失败时气泡显示脱敏错误并保留原文', async ({ page, extensionId }) => {
-  await page.goto(`chrome-extension://${extensionId}/options.html`);
+test('翻译服务认证失败时气泡显示脱敏错误并保留原文', async ({ page, extensionId }) => {  await page.goto(`chrome-extension://${extensionId}/options.html`);
   await page.getByRole('button', { name: '新建配置' }).click();
   await page.getByLabel('配置名称').fill('错误服务');
   await page.getByLabel('模型名').fill('mock-model');
@@ -183,4 +182,64 @@ test('翻译服务认证失败时气泡显示脱敏错误并保留原文', async
   await expect(bubble).toContainText('认证失败');
   expect(await bubble.textContent()).not.toContain('sk-e2e-secret-key-9876');
   await expect(paragraph).toContainText('The quick brown fox jumps over the lazy dog');
+});
+
+/** 读取 mock 服务的请求计数，用于观察是否真的产生了翻译请求。 */
+async function chatRequests(request: import('@playwright/test').APIRequestContext, scenario: string): Promise<number> {
+  const response = await request.get('/mock/stats');
+  const stats = (await response.json()) as Record<string, number>;
+  return stats[scenario] ?? 0;
+}
+
+test('相同原文命中缓存，清空缓存后才重新请求，且不影响配置', async ({ page, extensionId, request }) => {
+  await saveDefaultProfile(page, extensionId);
+  await page.goto('/article.html');
+
+  const translateFirstParagraph = async (): Promise<void> => {
+    await page.locator('#first').selectText();
+    await page.locator('.aiwt-selection-icon').click();
+    await expect(page.locator('.aiwt-selection-bubble')).toContainText('模拟译文：');
+    await page.locator('.aiwt-selection-bubble').getByRole('button', { name: '关闭译文气泡' }).click();
+  };
+
+  const before = await chatRequests(request, 'completions');
+  await translateFirstParagraph();
+  await translateFirstParagraph();
+  expect(await chatRequests(request, 'completions')).toBe(before + 1);
+
+  await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await expect(page.locator('.aiwt-cache-count')).toContainText('1');
+  await page.getByRole('button', { name: '清空译文缓存' }).click();
+  await expect(page.getByText('译文缓存已清空')).toBeVisible();
+  await expect(page.locator('.aiwt-cache-count')).toContainText('0');
+  // 清空缓存不会删除翻译服务配置。
+  await expect(page.locator('.aiwt-profile-item')).toHaveCount(1);
+
+  await page.goto('/article.html');
+  await translateFirstParagraph();
+  expect(await chatRequests(request, 'completions')).toBe(before + 2);
+});
+
+test('切换模型后相同原文不会命中旧缓存', async ({ page, extensionId, request }) => {
+  await saveDefaultProfile(page, extensionId);
+  await page.goto('/article.html');
+
+  await page.locator('#first').selectText();
+  await page.locator('.aiwt-selection-icon').click();
+  await expect(page.locator('.aiwt-selection-bubble')).toContainText('模拟译文：');
+
+  const before = await chatRequests(request, 'completions');
+
+  // 换一个模型后再翻译同一段：缓存键包含模型，必须重新请求。
+  await page.goto(`chrome-extension://${extensionId}/options.html`);
+  await page.locator('.aiwt-profile-item').first().getByRole('button', { name: '编辑' }).click();
+  await page.getByLabel('模型名').fill('other-model');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+
+  await page.goto('/article.html');
+  await page.locator('#first').selectText();
+  await page.locator('.aiwt-selection-icon').click();
+  await expect(page.locator('.aiwt-selection-bubble')).toContainText('模拟译文：');
+
+  expect(await chatRequests(request, 'completions')).toBe(before + 1);
 });

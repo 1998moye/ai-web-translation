@@ -7,6 +7,9 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const fixturesDir = path.join(root, 'fixtures');
 const port = Number(process.env.PORT ?? 4321);
 
+// 请求计数：让端到端测试能观察「是否真的产生了翻译请求」。
+const chatStats = new Map();
+
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
 
@@ -19,6 +22,12 @@ const server = http.createServer(async (request, response) => {
   // 可控的 Chat Completions 替身：让端到端测试验证完整链路的用户可见表现。
   if (url.pathname.startsWith('/mock/chat/')) {
     await handleMockChat(url.pathname.slice('/mock/chat/'.length), request, response);
+    return;
+  }
+
+  if (url.pathname === '/mock/stats') {
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify(Object.fromEntries(chatStats)));
     return;
   }
 
@@ -45,6 +54,7 @@ server.listen(port, () => {
 });
 
 async function handleMockChat(scenario, request, response) {
+  chatStats.set(scenario, (chatStats.get(scenario) ?? 0) + 1);
   const body = await readJsonBody(request);
 
   const reject = (status, headers = {}) => {

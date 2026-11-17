@@ -21,13 +21,15 @@ import { ChatCompletionsTranslationEngine } from '@/modules/translation-engine/c
 import { createChromeStorage } from '@/modules/site-preferences/key-value-storage';
 import { StoredTranslationProfiles } from '@/modules/translation-profile/profile-store';
 import { StoredTranslationPrompt } from '@/modules/translation-prompt/prompt-store';
+import { StoredTranslationCache } from '@/modules/translation-cache/translation-cache';
 
 export default defineBackground(() => {
   const storage = createChromeStorage();
   const profiles = new StoredTranslationProfiles(storage);
   const prompts = new StoredTranslationPrompt(storage);
+  const cache = new StoredTranslationCache(storage);
   const http = createFetchHttpAdapter();
-  const engine = new ChatCompletionsTranslationEngine({ http, profiles, prompts });
+  const engine = new ChatCompletionsTranslationEngine({ http, profiles, prompts, cache });
   const extensionOrigin = browser.runtime.getURL('/');
 
   // 翻译事件通道：内容脚本开始翻译后逐条推送事件。

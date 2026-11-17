@@ -3,8 +3,10 @@ import { createChromeStorage } from '@/modules/site-preferences/key-value-storag
 import { StoredSitePreferences } from '@/modules/site-preferences/site-preferences';
 import { StoredTranslationProfiles } from '@/modules/translation-profile/profile-store';
 import { StoredTranslationPrompt } from '@/modules/translation-prompt/prompt-store';
+import { StoredTranslationCache } from '@/modules/translation-cache/translation-cache';
 import { HealthStatus } from './health-status';
 import { SitePreferencesPanel } from './site-preferences-panel';
+import { TranslationCachePanel } from './translation-cache-panel';
 import { TranslationProfilesPanel } from './translation-profiles-panel';
 import { TranslationPromptPanel } from './translation-prompt-panel';
 
@@ -20,6 +22,7 @@ export function OptionsApp() {
   const repository = useMemo(() => new StoredSitePreferences(createChromeStorage()), []);
   const profileRepository = useMemo(() => new StoredTranslationProfiles(createChromeStorage()), []);
   const promptRepository = useMemo(() => new StoredTranslationPrompt(createChromeStorage()), []);
+  const translationCache = useMemo(() => new StoredTranslationCache(createChromeStorage()), []);
 
   return (
     <main className="aiwt-options">
@@ -55,6 +58,7 @@ export function OptionsApp() {
       >
         <TranslationProfilesPanel repository={profileRepository} promptRepository={promptRepository} />
         <TranslationPromptPanel repository={promptRepository} />
+        <TranslationCachePanel cache={translationCache} />
       </section>
 
       <section role="tabpanel" id="aiwt-panel-sites" aria-labelledby="aiwt-tab-sites" hidden={tab !== 'sites'}>
