@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
-import { clampButtonPosition, defaultButtonPosition, isDragGesture, moveButtonPosition, panelSideFor } from './button-position';
+import {
+  clampButtonPosition,
+  defaultButtonPosition,
+  DRAG_EDGE_MARGIN,
+  isDragGesture,
+  moveButtonPosition,
+  panelSideFor,
+} from './button-position';
 import type { ButtonPosition, ButtonPositionStore } from './button-position-store';
 
 const FALLBACK_SIZE = { width: 52, height: 52 };
@@ -119,7 +126,7 @@ export function useFloatingButtonPosition({
     if (!drag.moved && isDragGesture(delta.left, delta.top)) drag.moved = true;
     if (!drag.moved) return;
 
-    updatePosition(moveButtonPosition(drag.origin, delta, readViewport(win), measure(buttonRef.current)));
+    updatePosition(moveButtonPosition(drag.origin, delta, readViewport(win), measure(buttonRef.current), DRAG_EDGE_MARGIN));
   };
 
   const finishDrag = (event: ReactPointerEvent<HTMLButtonElement>): void => {
@@ -132,6 +139,8 @@ export function useFloatingButtonPosition({
     }
     if (drag.moved) {
       justDraggedRef.current = true;
+      // 松手后从贴边位置弹簧回安全间距。
+      updatePosition(clampButtonPosition(positionRef.current, readViewport(win), measure(buttonRef.current)));
       void store.write(positionRef.current);
     }
   };

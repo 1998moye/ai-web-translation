@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clampButtonPosition,
   defaultButtonPosition,
+  DRAG_EDGE_MARGIN,
   isDragGesture,
   moveButtonPosition,
   panelSideFor,
@@ -14,19 +15,19 @@ const SIZE = { width: 52, height: 52 };
 describe('悬浮按钮位置', () => {
   it('默认位于右侧中下部', () => {
     const position = defaultButtonPosition({ width: 1200, height: 800 }, SIZE);
-    expect(position).toEqual({ left: 1136, top: 496 });
+    expect(position).toEqual({ left: 1128, top: 496 });
   });
 
   it('保存的位置越界时夹取回可视区域', () => {
     const position = clampButtonPosition({ left: 5000, top: -200 }, { width: 800, height: 600 }, SIZE);
-    expect(position).toEqual({ left: 736, top: 12 });
+    expect(position).toEqual({ left: 728, top: 20 });
   });
 
   it('窗口缩小时按钮不会留在视口外', () => {
     const stored = { left: 1100, top: 700 };
     const position = clampButtonPosition(stored, { width: 640, height: 480 }, SIZE);
-    expect(position.left).toBeLessThanOrEqual(640 - SIZE.width - 12);
-    expect(position.top).toBeLessThanOrEqual(480 - SIZE.height - 12);
+    expect(position.left).toBeLessThanOrEqual(640 - SIZE.width - 20);
+    expect(position.top).toBeLessThanOrEqual(480 - SIZE.height - 20);
   });
 
   it('拖动位置按增量移动且不越界', () => {
@@ -34,7 +35,17 @@ describe('悬浮按钮位置', () => {
     expect(moved).toEqual({ left: 140, top: 130 });
 
     const clamped = moveButtonPosition({ left: 100, top: 100 }, { left: -1000, top: -1000 }, { width: 400, height: 300 }, SIZE);
-    expect(clamped).toEqual({ left: 12, top: 12 });
+    expect(clamped).toEqual({ left: 20, top: 20 });
+
+    // 拖动中允许更贴近边缘，松手后再回到安全间距。
+    const dragging = moveButtonPosition(
+      { left: 100, top: 100 },
+      { left: -1000, top: -1000 },
+      { width: 400, height: 300 },
+      SIZE,
+      DRAG_EDGE_MARGIN,
+    );
+    expect(dragging).toEqual({ left: DRAG_EDGE_MARGIN, top: DRAG_EDGE_MARGIN });
   });
 
   it('拖动阈值区分点击与拖动', () => {

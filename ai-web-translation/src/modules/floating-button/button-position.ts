@@ -10,7 +10,9 @@ export interface ElementSize {
   height: number;
 }
 
-export const BUTTON_EDGE_MARGIN = 12;
+export const BUTTON_EDGE_MARGIN = 20;
+/** 拖动过程中允许更贴近边缘，松手后弹簧回安全距离。 */
+export const DRAG_EDGE_MARGIN = 6;
 /** 默认位置：右侧中下部。 */
 export const DEFAULT_VERTICAL_RATIO = 0.62;
 
@@ -48,11 +50,13 @@ export function moveButtonPosition(
   delta: { left: number; top: number },
   viewport: ViewportSize,
   size: ElementSize,
+  margin: number = BUTTON_EDGE_MARGIN,
 ): ButtonPosition {
   return clampButtonPosition(
     { left: origin.left + delta.left, top: origin.top + delta.top },
     viewport,
     size,
+    margin,
   );
 }
 

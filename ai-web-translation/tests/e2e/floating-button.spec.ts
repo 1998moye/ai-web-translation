@@ -39,6 +39,8 @@ test('拖动按钮后位置在所有网站保持不变，且不会误触翻译',
   await page.mouse.down();
   await page.mouse.move(startX - 90, startY - 150, { steps: 12 });
   await page.mouse.up();
+  await page.mouse.move(12, 12);
+  await page.waitForTimeout(550);
 
   await expect(page.locator('[data-aiwt="body-translation"]')).toHaveCount(0);
   await expect(fab).toHaveAttribute('aria-label', '翻译此页');
@@ -49,19 +51,47 @@ test('拖动按钮后位置在所有网站保持不变，且不会误触翻译',
 
   await page.reload();
   await expect(fab).toBeVisible();
-  const afterReload = await fab.boundingBox();
-  if (!afterReload) throw new Error('重新加载后缺少按钮位置');
-  expect(Math.abs(afterReload.y - moved.y)).toBeLessThanOrEqual(2);
+  await expect
+    .poll(async () => {
+      const afterReload = await fab.boundingBox();
+      return afterReload ? Math.abs(afterReload.y - moved.y) : null;
+    })
+    .toBeLessThanOrEqual(2);
 
   // 另一个完整域名也使用同一份全局位置
   await page.goto('http://localhost:4321/article.html');
-  const otherSite = await page.locator('.aiwt-fab-main').boundingBox();
-  if (!otherSite) throw new Error('其他网站缺少按钮位置');
-  expect(Math.abs(otherSite.y - moved.y)).toBeLessThanOrEqual(2);
+  await expect
+    .poll(async () => {
+      const otherSite = await page.locator('.aiwt-fab-main').boundingBox();
+      return otherSite ? Math.abs(otherSite.y - moved.y) : null;
+    })
+    .toBeLessThanOrEqual(2);
 
   // 拖动结束后点击仍会正常触发翻译，不会被拖动状态吞掉
   await page.locator('.aiwt-fab-main').click();
   await expect(page.locator('[data-aiwt="body-translation"]')).toHaveCount(5);
+});
+
+test('拖到视口边缘松手后保留安全间距', async ({ page }) => {
+  const fab = page.locator('.aiwt-fab-main');
+  const box = await fab.boundingBox();
+  const viewport = page.viewportSize();
+  if (!box || !viewport) throw new Error('缺少按钮或视口尺寸');
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(viewport.width - 2, viewport.height - 2, { steps: 12 });
+  await page.mouse.up();
+  await page.mouse.move(10, 10);
+  await page.waitForTimeout(550);
+
+  await expect
+    .poll(async () => {
+      const moved = await fab.boundingBox();
+      if (!moved) return false;
+      return moved.x + moved.width <= viewport.width - 18 && moved.y + moved.height <= viewport.height - 18;
+    })
+    .toBe(true);
 });
 
 test('窗口缩小时按钮仍在可视区域内', async ({ page }) => {

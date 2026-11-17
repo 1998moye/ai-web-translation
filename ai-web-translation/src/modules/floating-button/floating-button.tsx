@@ -41,7 +41,7 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
     <div
       ref={buttonRef}
       className="aiwt-fab"
-      style={{ left: `${position.left}px`, top: `${position.top}px` }}
+      style={{ translate: `${position.left}px ${position.top}px` }}
       data-aiwt-phase={snapshot.phase}
       data-aiwt-dragging={dragging ? 'true' : 'false'}
       data-aiwt-panel-side={panelSide}
@@ -59,17 +59,36 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
         className="aiwt-fab-main"
         aria-label={snapshot.mainActionLabel}
         title={snapshot.mainActionLabel}
+        aria-busy={snapshot.phase === 'translating'}
         {...handlers}
       >
-        <span className="aiwt-fab-glyph" aria-hidden="true">
+        <span className="aiwt-fab-face" aria-hidden="true">
+          <span className="aiwt-fab-eye aiwt-fab-eye-left" />
+          <span className="aiwt-fab-eye aiwt-fab-eye-right" />
+          <span className="aiwt-fab-cheek aiwt-fab-cheek-left" />
+          <span className="aiwt-fab-cheek aiwt-fab-cheek-right" />
+          <span className="aiwt-fab-mouth" />
+        </span>
+        <span className="aiwt-fab-sign" key={snapshot.phase} aria-hidden="true">
           {snapshot.glyph}
         </span>
-        {snapshot.phase === 'translating' && <span className="aiwt-fab-spinner" aria-hidden="true" />}
-        {snapshot.phase === 'partial-failure' && <span className="aiwt-fab-alert" aria-hidden="true" />}
+        {snapshot.phase === 'translating' && <span className="aiwt-fab-orbit" aria-hidden="true" />}
+        {snapshot.phase === 'partial-failure' && (
+          <span className="aiwt-fab-alert" aria-hidden="true">
+            !
+          </span>
+        )}
+        {snapshot.phase === 'completed' && (
+          <svg className="aiwt-fab-sparkle" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2.5c.8 5.4 3.1 7.7 8.5 8.5-5.4.8-7.7 3.1-8.5 8.5-.8-5.4-3.1-7.7-8.5-8.5 5.4-.8 7.7-3.1 8.5-8.5Z" />
+          </svg>
+        )}
       </button>
 
       <div className="aiwt-fab-panel" role="group" aria-label="AI 网页翻译操作">
-        <div className="aiwt-fab-panel-head">
+        <span className="aiwt-fab-tail" aria-hidden="true" />
+        <div className="aiwt-fab-panel-body">
+          <div className="aiwt-fab-panel-head">
           <span className="aiwt-fab-phase" data-phase={snapshot.phase} aria-hidden="true" />
           <p className="aiwt-fab-status" aria-live="polite">
             {snapshot.statusText}
@@ -109,7 +128,11 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
               </button>
             )}
             {snapshot.canRetranslate && (
-              <button type="button" className="aiwt-fab-action" onClick={actions.onRetranslate}>
+              <button
+                type="button"
+                className={`aiwt-fab-action${snapshot.canRetry || snapshot.canCancel ? '' : ' aiwt-fab-action-primary'}`}
+                onClick={actions.onRetranslate}
+              >
                 重新翻译
               </button>
             )}
@@ -163,6 +186,7 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
           </p>
           <p className="aiwt-fab-hint">关闭一次只隐藏当前页面；永久关闭按完整域名保存，可在设置页恢复。</p>
         </footer>
+        </div>
       </div>
     </div>
   );
