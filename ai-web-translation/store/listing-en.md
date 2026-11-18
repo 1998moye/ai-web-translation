@@ -43,5 +43,5 @@ PRIVACY AND PERMISSIONS
 The extension needs permission to read and change data on the sites you visit so it can show the floating button on any ordinary page and read English text only after you click translate or enable auto-translation for that site. Protected pages such as browser internal pages and extension stores are not injected. No analytics, ads, or telemetry. Full details are in the privacy policy.
 
 SUPPORT
-Questions or feedback: {{SUPPORT_EMAIL}}
+Questions or feedback: q1806314252@gmail.com
 ```

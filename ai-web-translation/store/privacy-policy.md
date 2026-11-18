@@ -2,7 +2,7 @@
 
 生效日期：2026-11-18
 
-> 发布前请把 `{{SUPPORT_EMAIL}}` 替换为可公开联系的支持邮箱。商店后台的开发者联系邮箱可以与这里相同。
+> 支持邮箱：`q1806314252@gmail.com`。公开版本：<https://1998moye.github.io/ai-web-translation-privacy/>
 
 ## 摘要
 
@@ -66,7 +66,7 @@ AI 网页翻译是一个“自带 AI 服务”的浏览器扩展。我们不运�
 
 ## 7. 联系方式
 
-如对本政策或数据处理有疑问，请联系：`{{SUPPORT_EMAIL}}`
+如对本政策或数据处理有疑问，请联系：`q1806314252@gmail.com`
 
 ---
 
@@ -84,4 +84,4 @@ We do not collect browsing history, location, health, financial, or contact data
 
 The extension requests broad host access (`http://*/*`, `https://*/*`) so it can show the floating translate button on any ordinary web page and read page text only after you invoke translation or enable auto-translation. The `storage` permission is used for local settings and cache.
 
-Contact: `{{SUPPORT_EMAIL}}`
+Contact: `q1806314252@gmail.com`

@@ -48,7 +48,7 @@
 扩展不包含分析、广告或遥测；不出售用户数据。完整说明见隐私政策。
 
 支持
-遇到问题或有建议，请联系：{{SUPPORT_EMAIL}}
+遇到问题或有建议，请联系：q1806314252@gmail.com
 ```
 
 **Category** [REQUIRED]
@@ -116,9 +116,9 @@
 
 **Privacy Policy URL** [REQUIRED]
 
-`[待部署]` — 本地文件：`store/privacy-policy.html` / `store/privacy-policy.md`
+`https://1998moye.github.io/ai-web-translation-privacy/`
 
-发布前需要放到公开 HTTPS 地址，并把 `{{SUPPORT_EMAIL}}` 替换为真实支持邮箱。GitHub Pages 或公开 Gist 均可；确认无痕窗口能打开。
+已部署到 GitHub Pages，2026-11-18 用无痕窗口验证返回 200，页面包含支持邮箱。源文件：`store/privacy-policy.html` / `store/privacy-policy.md`。
 
 ## Distribution
 
@@ -129,15 +129,15 @@
 
 **Publisher Name** [REQUIRED]
 
-`{{PUBLISHER_NAME}}`（建议使用 qinkp 或你的个人/公司公开名称）
+`dz`（发布者显示名）
 
 **Contact Email** [REQUIRED]
 
-`{{SUPPORT_EMAIL}}`
+`q1806314252@gmail.com`
 
 **Support URL / Email** [RECOMMENDED]
 
-`{{SUPPORT_EMAIL}}`
+`q1806314252@gmail.com`
 
 **Homepage URL** [RECOMMENDED]
 

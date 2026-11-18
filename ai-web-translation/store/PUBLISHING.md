@@ -12,62 +12,45 @@
 - 3 张 1280×800 商店截图
 - 440×280 与 1400×560 宣传图
 - 中文/英文商店文案、权限说明、数据披露草稿、隐私政策
+- 公开发布者信息：`dz` / `q1806314252@gmail.com`
+- 隐私政策已部署并验证：<https://1998moye.github.io/ai-web-translation-privacy/>
 - Chrome / Edge 共用 ZIP：`store/packages/ai-web-translation-1.0.0-chrome.zip` 与 `...-edge.zip`
 
 必须你本人完成：
 
 1. 注册 Chrome Web Store 开发者账号（一次性 $5 费用）并完成身份/发布者验证。
 2. 注册 Microsoft Edge Partner Center 开发者账号（免费）。
-3. 确定公开的 **发布者名称** 与 **支持邮箱**。
-4. 把隐私政策放到公开 HTTPS 地址。
-5. 准备一个**临时低额度测试 API Key** 或测试端点，填在商店审核备注里（不要提交到仓库）。
-6. 在 Chrome / Edge 后台点击上传、填写表单、勾选协议并提交审核。
+3. 准备一个**临时低额度测试 API Key** 或测试端点，填在商店审核备注里（不要提交到仓库）。
+4. 在 Chrome / Edge 后台点击上传、填写表单、勾选协议并提交审核。
 
-我不能代替你登录账号、支付费用、同意开发者协议或完成 2FA；这些步骤必须由账号持有人完成。
+> 当前状态（2026-11-18）：`dz` 的 Chrome Web Store 和 Edge Partner Center 开发者账号均未注册。注册必须由你本人使用 Google / Microsoft 账号完成，涉及付款、2FA、身份验证和开发者协议，我无法代填。
 
 ## 1. 一次性注册
 
 ### Chrome Web Store
 
 1. 打开 <https://chromewebstore.google.com/devconsole>
-2. 用 Google 账号登录，支付一次性注册费（当前为 $5，以页面显示为准）。
-3. 填写发布者名称、联系邮箱，完成账号验证。
+2. 用 `q1806314252@gmail.com` 对应的 Google 账号登录，支付一次性注册费（当前为 $5，以页面显示为准）。
+3. 发布者名称填 `dz`，联系邮箱填 `q1806314252@gmail.com`，完成账号验证。
 4. 开启 2FA；商店通知会发送到该邮箱。
 
 ### Microsoft Edge Add-ons
 
 1. 打开 <https://partner.microsoft.com/dashboard/microsoftedge/>
-2. 用 Microsoft 账号（Outlook/Live/Hotmail，或 GitHub 登录后创建 MSA）注册 Microsoft Edge 计划。
-3. 选择 Individual 或 Company，填写发布者名称、联系信息和验证资料。
+2. 用 Microsoft 账号（Outlook/Live/Hotmail，或 GitHub 登录后创建 MSA）注册 Microsoft Edge 计划；可用 `q1806314252@gmail.com` 创建 MSA。
+3. 选择 Individual 或 Company，发布者名称填 `dz`，联系邮箱填 `q1806314252@gmail.com`，完成验证资料。
 4. Edge 计划**没有注册费**；账号审核可能需要几天。
 
-## 2. 填写公开信息并部署隐私政策
+## 2. 公开信息与隐私政策（已完成）
 
-先确定两个值：
+已确定并写入所有商店资料：
 
-- `{{PUBLISHER_NAME}}`：商店公开显示的名称（个人或公司）。
-- `{{SUPPORT_EMAIL}}`：公开支持邮箱，必须能收信。
+- 发布者名称：`dz`
+- 公开支持邮箱：`q1806314252@gmail.com`
+- 隐私政策：<https://1998moye.github.io/ai-web-translation-privacy/>
+- 部署仓库：<https://github.com/1998moye/ai-web-translation-privacy>（公开，仅含隐私政策与图标）
 
-替换以下文件中的占位符：
-
-```text
-store/privacy-policy.html
-store/privacy-policy.md
-CHROMEWEBSTORE.md
-EDGESTORE.md
-store/listing-en.md
-```
-
-然后把 `store/privacy-policy.html` 部署到公开 HTTPS 地址。推荐 GitHub Pages：
-
-1. 新建一个公开仓库（只放隐私政策即可）。
-2. 上传 `privacy-policy.html`，并把 `store/assets/icon-128.png` 放到同目录的 `assets/` 下。
-3. 仓库 Settings → Pages → Deploy from a branch → `main` / root。
-4. 得到类似 `https://<你的用户名>.github.io/<仓库名>/privacy-policy.html` 的地址。
-5. 用无痕窗口打开，确认不是 404，且正文没有 `{{SUPPORT_EMAIL}}` 占位符。
-6. 把该 URL 填到 Chrome 后台和 Edge 后合的 Privacy Policy URL。
-
-> GitHub Gist 也可以，但页面样式和稳定性不如 Pages。不要把隐私政策放在需要登录的页面。
+2026-11-18 已验证：无痕窗口返回 HTTP 200，页面包含支持邮箱，没有占位符。把上面的隐私政策 URL 直接填进 Chrome 和 Edge 后台即可。
 
 ## 3. 准备审核测试凭据
 
@@ -168,18 +151,23 @@ store/packages/ai-web-translation-1.0.0-edge.zip
 
 - 在 Chrome 和 Edge 各安装一次商店版本，确认图标、悬浮按钮、整页翻译、划词翻译和设置页正常。
 - 用商店版本再跑一次“无配置 → 提示配置”的路径。
-- 监控 `{{SUPPORT_EMAIL}}` 和商店后台的审核/用户反馈。
+- 监控 `q1806314252@gmail.com` 和商店后台的审核/用户反馈。
 - 立刻轮换审核用的临时 API Key。
 - 为本次发布打 tag：`git tag v1.0.0`。
 - 以后每次更新：修改 `package.json` / manifest 版本 → 更新 `CHROMEWEBSTORE.md` 的 Version History → `npm run verify && npm run store:package` → 上传新 ZIP。
 
-## 8. 仍需确认的信息
+## 8. 仍需完成的信息
 
-发布前请把下面四项补上；在补齐之前，商店后台会卡在必填项：
+已确认：
 
-- [ ] 发布者名称（`{{PUBLISHER_NAME}}`）
-- [ ] 公开支持邮箱（`{{SUPPORT_EMAIL}}`）
-- [ ] 隐私政策公开 URL（`[待部署]`）
-- [ ] Chrome / Edge 开发者账号已注册，且能登录后台
+- [x] 发布者名称：`dz`
+- [x] 公开支持邮箱：`q1806314252@gmail.com`
+- [x] 隐私政策公开 URL：<https://1998moye.github.io/ai-web-translation-privacy/>
 
-不要通过聊天发送 API Key 或账号密码；测试 Key 由你直接填在商店后台的私有审核备注里。
+仍需你本人完成：
+
+- [ ] 注册 Chrome Web Store 开发者账号（$5，Google 账号 + 2FA + 身份验证）
+- [ ] 注册 Microsoft Edge Partner Center 开发者账号（免费，Microsoft 账号 + 验证）
+- [ ] 准备审核用临时 API Key（只填商店后台私有备注，不要发到聊天或提交到仓库）
+
+商店上传与提交必须登录开发者账号后完成；不要把账号密码或 API Key 发给我。

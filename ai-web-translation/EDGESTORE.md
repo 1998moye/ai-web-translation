@@ -47,7 +47,7 @@ Edge fills the following from `manifest.json`. Do not edit them in the listing f
 • 翻译请求直接发送到你填写的服务地址，不经过扩展开发者。
 • API Key、配置与译文缓存只保存在本机扩展存储中。
 
-支持：{{SUPPORT_EMAIL}}
+支持：q1806314252@gmail.com
 ```
 
 **Search terms**
@@ -97,9 +97,9 @@ Edge fills the following from `manifest.json`. Do not edit them in the listing f
 
 **Privacy policy URL**
 
-`[待部署]` — local file: `store/privacy-policy.html`
+`https://1998moye.github.io/ai-web-translation-privacy/`
 
-Before submission, host it at a public HTTPS URL and replace `{{SUPPORT_EMAIL}}`. Verify it opens in a private window.
+Deployed to GitHub Pages. Verified on 2026-11-18 with a private window: HTTP 200 and the support email is visible. Local source: `store/privacy-policy.html`.
 
 ## Certification Testing Notes
 
@@ -114,9 +114,9 @@ This extension uses a bring-your-own-AI model. It has no built-in model, API key
 
 ## Developer Info
 
-**Publisher display name**: `{{PUBLISHER_NAME}}`
-**Contact email**: `{{SUPPORT_EMAIL}}`
-**Support URL**: `{{SUPPORT_EMAIL}}` or a public issue tracker
+**Publisher display name**: `dz`
+**Contact email**: `q1806314252@gmail.com`
+**Support URL**: `q1806314252@gmail.com` or a public issue tracker
 **Website**: optional
 
 ## Version History
