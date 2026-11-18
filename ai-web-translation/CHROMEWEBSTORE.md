@@ -118,7 +118,7 @@
 
 `https://1998moye.github.io/ai-web-translation-privacy/`
 
-已部署到 GitHub Pages，2026-11-18 用无痕窗口验证返回 200，页面包含支持邮箱。源文件：`store/privacy-policy.html` / `store/privacy-policy.md`。
+已部署到 GitHub Pages，2026-11-18 用未登录的公开请求验证返回 200，页面包含支持邮箱。源文件：`store/privacy-policy.html` / `store/privacy-policy.md`。
 
 ## Distribution
 

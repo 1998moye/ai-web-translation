@@ -99,7 +99,7 @@ Edge fills the following from `manifest.json`. Do not edit them in the listing f
 
 `https://1998moye.github.io/ai-web-translation-privacy/`
 
-Deployed to GitHub Pages. Verified on 2026-11-18 with a private window: HTTP 200 and the support email is visible. Local source: `store/privacy-policy.html`.
+Deployed to GitHub Pages. Verified on 2026-11-18 with an unauthenticated public request: HTTP 200 and the support email is visible. Local source: `store/privacy-policy.html`.
 
 ## Certification Testing Notes
 

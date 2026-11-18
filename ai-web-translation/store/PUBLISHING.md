@@ -50,7 +50,7 @@
 - 隐私政策：<https://1998moye.github.io/ai-web-translation-privacy/>
 - 部署仓库：<https://github.com/1998moye/ai-web-translation-privacy>（公开，仅含隐私政策与图标）
 
-2026-11-18 已验证：无痕窗口返回 HTTP 200，页面包含支持邮箱，没有占位符。把上面的隐私政策 URL 直接填进 Chrome 和 Edge 后台即可。
+2026-11-18 已验证：未登录的公开请求返回 HTTP 200，页面包含支持邮箱，没有占位符。把上面的隐私政策 URL 直接填进 Chrome 和 Edge 后台即可。
 
 ## 3. 准备审核测试凭据
 
