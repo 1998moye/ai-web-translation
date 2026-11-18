@@ -305,7 +305,8 @@
 .aiwt-fab-sign {
   position: absolute;
   top: -8px;
-  right: 8px;
+  left: calc(50% - 10.5px);
+  right: auto;
   bottom: auto;
   display: grid;
   place-items: center;
@@ -320,22 +321,20 @@
   font-size: 10px;
   font-weight: 900;
   line-height: 1;
-  rotate: 8deg;
+  rotate: 6deg;
   transform-origin: 50% 70%;
   z-index: 2;
   transition: background-color 200ms ease-out;
 }
 
-/* 译/原 是别在头顶的小装饰；贴边时放在朝页面的一侧，静止和探头都露得出来。 */
+/* 译/原 是别在头顶中央的小装饰；贴边时只向页面一侧偏 3px。 */
 .aiwt-fab[data-aiwt-edge-x='right'] .aiwt-fab-sign {
-  right: auto;
-  left: 8px;
+  left: calc(50% - 13.5px);
   rotate: -8deg;
 }
 
 .aiwt-fab[data-aiwt-edge-x='left'] .aiwt-fab-sign {
-  right: 8px;
-  left: auto;
+  left: calc(50% - 7.5px);
   rotate: 8deg;
 }
 
@@ -971,17 +970,14 @@
   0% {
     opacity: 0;
     scale: 0.5;
-    rotate: -14deg;
   }
   60% {
     opacity: 1;
     scale: 1.12;
-    rotate: -3deg;
   }
   100% {
     opacity: 1;
     scale: 1;
-    rotate: -6deg;
   }
 }
 
