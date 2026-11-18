@@ -32,6 +32,8 @@ describe('classifyText', () => {
 
   it('忽略行内格式标记', () => {
     expect(classifyText('Run ⟦o1⟧ to install ⟦w1⟧the package⟦/w1⟧')).toBe('english');
+    // 纯链接标题的结尾标记也必须去掉，否则会多算一个单词并把标题判成非英文。
+    expect(classifyText('⟦w1⟧Dereferencing a null pointer undefined behavior?⟦/w1⟧')).toBe('english');
   });
 });
 

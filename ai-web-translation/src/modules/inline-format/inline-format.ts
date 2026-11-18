@@ -61,6 +61,7 @@ export function isHiddenElement(element: Element): boolean {
   if (inlineStyle) {
     if (inlineStyle.display === 'none') return true;
     if (inlineStyle.visibility === 'hidden' || inlineStyle.visibility === 'collapse') return true;
+    if (inlineStyle.opacity === '0') return true;
   }
   const view = element.ownerDocument?.defaultView;
   if (!view) return false;
@@ -72,7 +73,9 @@ export function isHiddenElement(element: Element): boolean {
   }).checkVisibility;
   if (typeof checkVisibility === 'function') {
     try {
-      return !checkVisibility.call(element, { checkVisibilityCSS: true });
+      // checkVisibility 只看 display/visibility，不会识别 sr-only 的 1px 裁剪；
+      // 返回 false 时继续走下面的视觉隐藏检查。
+      if (!checkVisibility.call(element, { checkVisibilityCSS: true })) return true;
     } catch {
       // 回退到逐层检查。
     }
@@ -100,18 +103,29 @@ export function isHiddenElement(element: Element): boolean {
  * 文字里，让一个纯数字徽章变成翻译单元，于是在旁边多出一份译文。
  */
 function isVisuallyHidden(computed: CSSStyleDeclaration): boolean {
-  const position = computed.getPropertyValue('position');
-  if (position !== 'absolute' && position !== 'fixed') return false;
+  const opacity = Number.parseFloat(computed.getPropertyValue('opacity'));
+  if (Number.isFinite(opacity) && opacity === 0) return true;
 
-  const width = Number.parseFloat(computed.getPropertyValue('width'));
-  const height = Number.parseFloat(computed.getPropertyValue('height'));
-  if (Number.isFinite(width) && Number.isFinite(height) && width <= 1 && height <= 1) return true;
+  const fontSize = Number.parseFloat(computed.getPropertyValue('font-size'));
+  if (Number.isFinite(fontSize) && fontSize === 0) return true;
 
-  const clip = computed.getPropertyValue('clip');
-  if (clip && clip !== 'auto') return true;
+  const textIndent = Number.parseFloat(computed.getPropertyValue('text-indent'));
+  if (Number.isFinite(textIndent) && textIndent <= -999) return true;
 
   const clipPath = computed.getPropertyValue('clip-path');
-  return Boolean(clipPath && clipPath.includes('inset(50%)'));
+  if (clipPath && clipPath.includes('inset(50%)')) return true;
+
+  const position = computed.getPropertyValue('position');
+  const width = Number.parseFloat(computed.getPropertyValue('width'));
+  const height = Number.parseFloat(computed.getPropertyValue('height'));
+  const tiny = Number.isFinite(width) && Number.isFinite(height) && width <= 1 && height <= 1;
+  const overflow = computed.getPropertyValue('overflow');
+
+  // sr-only 文本有时用绝对定位 + 1px 尺寸，有时用 overflow:hidden + 1px 尺寸。
+  if (tiny && (position === 'absolute' || position === 'fixed' || overflow === 'hidden')) return true;
+
+  const clip = computed.getPropertyValue('clip');
+  return Boolean(clip && clip !== 'auto');
 }
 
 function shouldSkipElement(element: Element): boolean {

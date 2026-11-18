@@ -37,6 +37,18 @@ describe('scanTranslatableTargets', () => {
     expect(targets[0]?.text).toBe('Read ⟦w1⟧the documentation⟦/w1⟧ now.');
   });
 
+  it('只含链接的内容标题作为正文保留英文，并在下方显示译文', () => {
+    const targets = scan(
+      '<article><h3><a href="/questions/1">Dereferencing a null pointer undefined behavior?</a></h3></article>',
+    );
+    expect(targets.filter((target) => target.kind === 'body').map((target) => target.element.tagName)).toEqual([
+      'H3',
+    ]);
+    expect(targets.map((target) => target.text)).toEqual([
+      '⟦w1⟧Dereferencing a null pointer undefined behavior?⟦/w1⟧',
+    ]);
+  });
+
   it('只保留最内层正文单元', () => {
     const targets = scan('<ul><li><p>Nested paragraph text.</p></li></ul>');
     expect(targets.map((target) => target.element.tagName)).toEqual(['P']);
@@ -75,6 +87,20 @@ describe('scanTranslatableTargets', () => {
           <a href="/forks">729</a>
           <span>Built by <a href="/people">people</a></span>
           <span>7,015 stars this week</span>
+        </div>
+      </article>
+    `);
+
+    expect(targets.filter((target) => target.kind === 'body')).toHaveLength(0);
+  });
+
+  it('只有单个用户链接的紧凑元数据行也不当作正文', () => {
+    const targets = scan(`
+      <article>
+        <div class="repo-meta">
+          <span>TypeScript</span>
+          <a href="/people">octocat</a>
+          <span>8,480 stars this week</span>
         </div>
       </article>
     `);
@@ -141,6 +167,23 @@ describe('scanTranslatableTargets', () => {
     setPage(
       '<div><span class="badge"><span style="position: absolute; width: 1px; height: 1px">reputation score</span>21</span></div>',
     );
+
+    expect(scanTranslatableTargets(document)).toHaveLength(0);
+  });
+
+  it('透明度为零的屏幕阅读器标签不会把纯数字徽章变成译文', () => {
+    setPage('<div><span>59.3k</span><span style="opacity: 0">reputation</span></div>');
+
+    expect(scanTranslatableTargets(document)).toHaveLength(0);
+  });
+
+  it('浏览器 checkVisibility 认为可见时，仍跳过 1px 裁剪的 sr-only 文本', () => {
+    setPage(
+      '<div><span id="sr" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0)">reputation</span><span>59.3k</span></div>',
+    );
+    const hidden = document.getElementById('sr');
+    if (!hidden) throw new Error('缺少隐藏标签');
+    Object.defineProperty(hidden, 'checkVisibility', { value: () => true });
 
     expect(scanTranslatableTargets(document)).toHaveLength(0);
   });

@@ -1,4 +1,4 @@
-import { normalizeText } from '@/shared/text';
+import { stripInlineMarkers } from '@/shared/inline-markers';
 
 export type TextLanguage = 'english' | 'non-english' | 'untranslatable';
 
@@ -37,7 +37,7 @@ export interface PageLanguageSummary {
  * - 没有虚词的短标签（按钮、菜单）按英文处理。
  */
 export function classifyText(text: string): TextLanguage {
-  const source = normalizeText(text.replace(/⟦[\/ow]\d+⟧/g, ' '));
+  const source = stripInlineMarkers(text);
   if (!source) return 'untranslatable';
   if (CJK_PATTERN.test(source)) return 'non-english';
 

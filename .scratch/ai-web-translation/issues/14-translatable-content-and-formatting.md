@@ -32,6 +32,14 @@
 
 ### 2026-11-17 修复仓库元数据行译文错位
 
-- 正文扫描新增“紧凑控制行”判断：`div` 内有 2 个以上链接/按钮等界面控件，且直接文本不足 30 字符时，不再当作正文段落。GitHub Trending 的 `TypeScript · 8,480 · 729 · Built by … · stars this week` 这类元数据行因此不会在下方插入整块译文、挤开下一行。
+- 正文扫描新增“紧凑控制行”判断：`div` 内有链接/按钮等界面控件，且直接文本不足 30 字符时，不再当作正文段落。GitHub Trending 的 `TypeScript · 8,480 · 729 · Built by … · stars this week` 这类元数据行因此不会在下方插入整块译文、挤开下一行。
 - 元数据里的链接仍按界面文本原位翻译；普通正文 `div`（直接文本足够长）不受影响。
 - 验收：`tests/unit/content-scan.test.ts` 新增“仓库元数据行”与“长多链接 div”用例（15 用例）；真实 GitHub Trending 用 fake Engine 抽查，元数据行不再出现 `body-translation`；单测 311、fake e2e 29 passed / 1 skipped、生产 e2e 27 passed。
+
+### 2026-11-17 修复无原文译文与纯链接标题漏翻
+
+- 修复 `checkVisibility` 提前返回导致视觉隐藏节点仍被当成正文的问题：`checkVisibility({ checkVisibilityCSS: true })` 只看 display/visibility，识别不了 GitHub 的 `.sr-only`（1px 裁剪、`clip-path: inset(...)`、`opacity: 0` 等）。现在只有它明确判定不可见时才跳过，否则继续逐层检查视觉隐藏。GitHub 仓库页侧栏里“参与贡献 / 安全策略 / 星标数”等没有原文的重复译文不再出现。
+- `isVisuallyHidden` 补齐 `opacity: 0`、`font-size: 0`、负 `text-indent`、非 `inset(50%)` 的 `clip-path`、1px + `overflow: hidden` 等常见 sr-only 写法；纯数字徽章旁不会再多出译文。
+- 修复语言判断未剥离闭合行内标记的问题：`classifyText` 改用 `stripInlineMarkers`，只含一个链接的标题不会因为残留的 `⟦/w1⟧` 被多算一个单词、误判为非英文而不翻译。Stack Overflow 风格的问题标题现在保留英文并在下方显示译文。
+- 紧凑控制行阈值从“2 个以上控件”放宽到“1 个以上控件”，只有单个用户链接的仓库元数据行也不会再插入整块译文。
+- 验收：新增 `tests/e2e/fixtures/stack.html` 与 `tests/e2e/content-recognition.spec.ts`；单测 315、fake e2e 30 passed / 1 skipped、生产 e2e 27 passed、`npm run compile` 通过。

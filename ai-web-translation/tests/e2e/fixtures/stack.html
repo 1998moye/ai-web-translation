@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Stack question fixture</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        color: #232629;
+        background: #fff;
+      }
+
+      .question {
+        display: flex;
+        gap: 20px;
+        max-width: 860px;
+        padding: 20px 0;
+        border-bottom: 1px solid #d6d9dc;
+      }
+
+      .stats {
+        flex: 0 0 70px;
+        color: #6a737c;
+        font-size: 12px;
+        line-height: 1.8;
+      }
+
+      .content {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .title {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.3;
+        font-weight: 400;
+      }
+
+      .title a {
+        color: #0074cc;
+        text-decoration: none;
+      }
+
+      .excerpt {
+        margin-top: 8px;
+        color: #3b4045;
+        line-height: 1.5;
+      }
+
+      .meta {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+        color: #6a737c;
+        font-size: 12px;
+      }
+
+      .rep {
+        position: relative;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: #e1ecf4;
+        color: #39739d;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="questions">
+      <article class="question s-post-summary">
+        <div class="stats">
+          <div>1 vote</div>
+          <div>0 answers</div>
+          <div>37 views</div>
+        </div>
+        <div class="content s-post-summary--content">
+          <h3 class="title s-post-summary--content-title">
+            <a href="/questions/1/dereferencing-null-pointer">
+              Dereferencing a null pointer undefined behavior?
+            </a>
+          </h3>
+          <div class="excerpt s-post-summary--content-excerpt">
+            everyone knows that dereferencing a null pointer is undefined behavior in C++. However, I couldn't find
+            any clause that says so.
+          </div>
+          <div class="meta">
+            <span>asked 1 hour ago</span>
+            <span class="user">
+              <a href="/users/1">darkfenix</a>
+            </span>
+            <span class="rep">
+              <span class="rep-number">59.3k</span>
+              <span class="sr-only">reputation</span>
+            </span>
+          </div>
+        </div>
+      </article>
+    </main>
+  </body>
+</html>

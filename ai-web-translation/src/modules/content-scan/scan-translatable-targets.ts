@@ -130,7 +130,7 @@ function eligiblePayload(element: HTMLElement, allowInNavigation: boolean): Inli
  */
 function isInlineControlRow(element: HTMLElement): boolean {
   if (element.tagName.toUpperCase() !== 'DIV') return false;
-  if (element.querySelectorAll(INTERFACE_SELECTOR).length < 2) return false;
+  if (element.querySelectorAll(INTERFACE_SELECTOR).length < 1) return false;
 
   let directText = '';
   for (const node of Array.from(element.childNodes)) {
@@ -145,7 +145,15 @@ function collectBodyCandidates(root: Element): Candidate[] {
   const consider = (element: HTMLElement, requireInlineOnly: boolean): void => {
     const payload = eligiblePayload(element, false);
     if (!payload) return;
-    if (!proseTextOutsideControls(element)) return;
+    if (!proseTextOutsideControls(element)) {
+      // 内容标题常常只有一个链接作为全部文字（如 Stack Overflow 问题标题）；
+      // 它不是导航控件，应保留英文并在下方显示译文。
+      const isContentHeading =
+        /^H[1-6]$/.test(element.tagName.toUpperCase()) &&
+        normalizeText(element.textContent ?? '').length >= 16 &&
+        element.closest('header, [role="banner"]') === null;
+      if (!isContentHeading) return;
+    }
     if (requireInlineOnly) {
       if (hasBlockishChild(element)) return;
       if (isInlineControlRow(element)) return;
