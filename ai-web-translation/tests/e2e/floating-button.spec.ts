@@ -72,50 +72,6 @@ test('拖动按钮后位置在所有网站保持不变，且不会误触翻译',
   await expect(page.locator('[data-aiwt="body-translation"]')).toHaveCount(5);
 });
 
-test('贴边的角色会定时探头，探头时露出完整表情和两只扒边的手', async ({ page }) => {
-  const fab = page.locator('.aiwt-fab-main');
-  const root = page.locator('.aiwt-fab');
-  const box = await fab.boundingBox();
-  const viewport = page.viewportSize();
-  if (!box || !viewport) throw new Error('缺少按钮或视口尺寸');
-
-  const centerY = 360;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(viewport.width - 2, centerY, { steps: 12 });
-  await page.mouse.up();
-  await page.mouse.move(10, 10);
-
-  await expect(root).toHaveAttribute('data-aiwt-edge-x', 'right');
-  await expect(root).toHaveAttribute('data-aiwt-hand-x', 'right');
-  await expect(page.locator('.aiwt-fab-grip')).toHaveCount(2);
-  await expect(page.locator('.aiwt-fab-grip-finger')).toHaveCount(6);
-  await expect(page.locator('.aiwt-fab-grip-thumb')).toHaveCount(2);
-  await expect(page.locator('.aiwt-fab-grip-upper')).toBeVisible();
-
-  // 译/原是头顶的小装饰；贴边和探头时都应完整露在头部上沿。
-  const restSign = await page.locator('.aiwt-fab-sign').boundingBox();
-  const restFab = await fab.boundingBox();
-  const handBoxes = await page
-    .locator('.aiwt-fab-grip')
-    .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().toJSON()));
-  if (!restSign || !restFab || handBoxes.length !== 2) throw new Error('缺少徽章或手的位置');
-  expect(restSign.x).toBeGreaterThanOrEqual(0);
-  expect(restSign.x + restSign.width).toBeLessThanOrEqual(viewport.width + 1);
-  expect(restSign.y).toBeGreaterThanOrEqual(0);
-  expect(restSign.y).toBeLessThan(restFab.y + restFab.height / 2);
-  expect(handBoxes[0].top).toBeLessThan(handBoxes[1].top);
-
-  // 第一次自动探头约在 2 秒后开始；探头后应从 36px 静态露出扩到 44px。
-  await expect(root).toHaveAttribute('data-aiwt-peeking', 'true', { timeout: 6000 });
-  await expect
-    .poll(async () => {
-      const peek = await fab.boundingBox();
-      return peek ? viewport.width - peek.x >= 40 : false;
-    })
-    .toBe(true);
-});
-
 test('拖到视口边缘后藏在屏幕外探头，悬停完整弹出', async ({ page }) => {
   const fab = page.locator('.aiwt-fab-main');
   const root = page.locator('.aiwt-fab');
@@ -133,19 +89,13 @@ test('拖到视口边缘后藏在屏幕外探头，悬停完整弹出', async ({
   await expect(root).toHaveAttribute('data-aiwt-edge-x', 'right');
   await expect(root).toHaveAttribute('data-aiwt-edge-y', 'bottom');
 
-  // 侧面探头：水平方向有 26px 藏在屏幕外；上下不切脸，底边仍留在视口内。
+  // 侧面探头：水平方向藏一部分；上下贴边也允许裁切，但保留足够可见区域。
   const peek = await fab.boundingBox();
   if (!peek) throw new Error('缺少探头位置');
   expect(peek.x + peek.width).toBeGreaterThan(viewport.width);
-  expect(peek.y + peek.height).toBeLessThanOrEqual(viewport.height + 1);
+  expect(peek.y + peek.height).toBeGreaterThan(viewport.height);
   expect(viewport.width - peek.x).toBeGreaterThanOrEqual(30);
-
-  const restSign = await page.locator('.aiwt-fab-sign').boundingBox();
-  if (!restSign) throw new Error('缺少徽章位置');
-  expect(restSign.x).toBeGreaterThanOrEqual(0);
-  expect(restSign.x + restSign.width).toBeLessThanOrEqual(viewport.width + 1);
-  expect(restSign.y).toBeGreaterThanOrEqual(0);
-  expect(restSign.y).toBeLessThan(peek.y + peek.height / 2);
+  expect(viewport.height - peek.y).toBeGreaterThanOrEqual(40);
 
   // 悬停后完整滑出，贴住屏幕边缘，不再被裁切。
   await fab.hover();
@@ -163,9 +113,6 @@ test('拖到视口边缘后藏在屏幕外探头，悬停完整弹出', async ({
   if (!revealed) throw new Error('缺少展开位置');
   expect(revealed.x + revealed.width).toBeLessThanOrEqual(viewport.width + 3);
   expect(revealed.y + revealed.height).toBeLessThanOrEqual(viewport.height + 3);
-
-  // 角色已经完整滑出来，扒边的小手收回去，不悬在按钮旁边。
-  await expect(page.locator('.aiwt-fab-grips')).toHaveCSS('opacity', '0');
 });
 
 test('窗口缩小时按钮贴边探头，悬停后完整可见', async ({ page }) => {
@@ -202,29 +149,14 @@ test('按钮拖到左侧时展开面板仍在视口内', async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(20, box.y + box.height / 2, { steps: 10 });
   await page.mouse.up();
-  await page.mouse.move(10, 10);
-  await page.waitForTimeout(500);
-
-  const viewport = page.viewportSize();
-  const restSign = await page.locator('.aiwt-fab-sign').boundingBox();
-  const restFab = await fab.boundingBox();
-  if (!viewport || !restSign || !restFab) throw new Error('缺少徽章位置');
-  expect(restSign.x).toBeGreaterThanOrEqual(0);
-  expect(restSign.x + restSign.width).toBeLessThanOrEqual(viewport.width);
-  expect(restSign.y).toBeGreaterThanOrEqual(0);
-  expect(restSign.y).toBeLessThan(restFab.y + restFab.height / 2);
 
   await openFabPanel(page);
   const panelBox = await page.locator('.aiwt-fab-panel').boundingBox();
-  const buttonBox = await fab.boundingBox();
-  const signBox = await page.locator('.aiwt-fab-sign').boundingBox();
-  if (!panelBox || !buttonBox || !signBox) throw new Error('缺少面板或按钮位置');
+  const viewport = page.viewportSize();
+  if (!panelBox || !viewport) throw new Error('缺少面板位置');
 
   expect(panelBox.x).toBeGreaterThanOrEqual(0);
   expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(viewport.width);
-  // 完整展开后，装饰仍在头部上沿，而不是落回按钮下方。
-  expect(signBox.y).toBeLessThan(buttonBox.y + buttonBox.height / 2);
-  expect(signBox.x).toBeGreaterThanOrEqual(0);
 });
 
 test('按钮靠近顶部时面板向下展开且不超出视口', async ({ page }) => {

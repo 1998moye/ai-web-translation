@@ -29,3 +29,9 @@
 
 - 修复隐藏容器（如 `display:none` 折叠面板）内的英文仍被提交的问题：优先使用 `checkVisibility`，其他环境逐层检查祖先的 display/visibility/hidden。
 - 补充会话级测试，确认隐藏内容不进入请求、可见内容照常翻译。
+
+### 2026-11-17 修复仓库元数据行译文错位
+
+- 正文扫描新增“紧凑控制行”判断：`div` 内有 2 个以上链接/按钮等界面控件，且直接文本不足 30 字符时，不再当作正文段落。GitHub Trending 的 `TypeScript · 8,480 · 729 · Built by … · stars this week` 这类元数据行因此不会在下方插入整块译文、挤开下一行。
+- 元数据里的链接仍按界面文本原位翻译；普通正文 `div`（直接文本足够长）不受影响。
+- 验收：`tests/unit/content-scan.test.ts` 新增“仓库元数据行”与“长多链接 div”用例（15 用例）；真实 GitHub Trending 用 fake Engine 抽查，元数据行不再出现 `body-translation`；单测 311、fake e2e 29 passed / 1 skipped、生产 e2e 27 passed。

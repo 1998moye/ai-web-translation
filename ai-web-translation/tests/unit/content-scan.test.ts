@@ -66,6 +66,29 @@ describe('scanTranslatableTargets', () => {
     expect(targets.filter((target) => target.kind === 'body')).toHaveLength(1);
   });
 
+  it('紧凑的仓库元数据行不当作正文，避免在行下插入译文块', () => {
+    const targets = scan(`
+      <article>
+        <div class="repo-meta">
+          <span>TypeScript</span>
+          <a href="/stars">8,480</a>
+          <a href="/forks">729</a>
+          <span>Built by <a href="/people">people</a></span>
+          <span>7,015 stars this week</span>
+        </div>
+      </article>
+    `);
+
+    expect(targets.filter((target) => target.kind === 'body')).toHaveLength(0);
+  });
+
+  it('直接文本足够长的多链接 div 仍按正文翻译', () => {
+    const targets = scan(
+      '<div>Read the <a href="/guide">guide</a> and the <a href="/docs">documentation</a> before starting the migration.</div>',
+    );
+    expect(targets.filter((target) => target.kind === 'body')).toHaveLength(1);
+  });
+
   it('含块级子元素的 div 不作为正文', () => {
     const targets = scan('<div><p>Child paragraph text.</p><p>Second paragraph.</p></div>');
     expect(targets.filter((target) => target.kind === 'body').map((target) => target.element.tagName)).toEqual([

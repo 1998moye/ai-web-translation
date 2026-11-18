@@ -39,7 +39,7 @@
   transition: translate 480ms cubic-bezier(0.33, 1, 0.68, 1);
 }
 
-/* 右侧贴边：停在屏幕边上只露 36px（小手 + 半张脸）；自动探头露 44px，悬停完整 56px。 */
+/* 右侧贴边：向屏幕外藏约 20px，只露约 36px；悬停时滑回贴边完整显示。 */
 .aiwt-fab[data-aiwt-edge-x='right'] .aiwt-fab-peek {
   --aiwt-peek-x: 40px;
 }
@@ -48,26 +48,14 @@
   --aiwt-peek-x: -40px;
 }
 
-/* 上下贴边不做缩进：横向切掉脸会把眼睛藏掉，侧面才是探头的方向。 */
-.aiwt-fab[data-aiwt-edge-y='bottom'] .aiwt-fab-peek,
+/* 上下贴边只藏 12px，避免把眼睛和表情完全藏掉。 */
+.aiwt-fab[data-aiwt-edge-y='bottom'] .aiwt-fab-peek {
+  --aiwt-peek-y: 32px;
+}
+
 .aiwt-fab[data-aiwt-edge-y='top'] .aiwt-fab-peek {
-  --aiwt-peek-y: 0px;
+  --aiwt-peek-y: -32px;
 }
-
-/* 自动探头：比完全展开多藏 12px，露出完整表情，但还躲在屏幕后面。 */
-.aiwt-fab[data-aiwt-peeking='true'] .aiwt-fab-peek {
-  translate: var(--aiwt-peek-out-x, 0px) var(--aiwt-peek-out-y, 0px);
-  transition-duration: 440ms;
-  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* 完成/失败时完全露出来，让星芒和感叹号别被屏幕裁掉。 */
-.aiwt-fab[data-aiwt-peeking='true'][data-aiwt-attention='true'] .aiwt-fab-peek,
-.aiwt-fab[data-aiwt-phase='translating'] .aiwt-fab-peek {
-  translate: var(--aiwt-hover-x, 0px) var(--aiwt-hover-y, 0px);
-}
-
-/* 探头时徽章停在可见脸的屏幕边缘一侧，不跟着头一起缩进屏幕外。 */
 
 .aiwt-fab[data-aiwt-revealed='true'] .aiwt-fab-peek,
 .aiwt-fab:hover .aiwt-fab-peek,
@@ -134,115 +122,6 @@
   transition-duration: 80ms;
 }
 
-/* ---------- 两只手扒住屏幕边缘 ---------- */
-
-/* 手锚定在视口侧边，不跟着头一起滑；头缩回去时手还留在边上。 */
-.aiwt-fab-grips {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 4;
-  pointer-events: none;
-  transition: opacity 160ms ease-out;
-}
-
-/* 完全展开后角色已经离开墙边，小手收回去，避免手悬在按钮旁边。 */
-.aiwt-fab:is([data-aiwt-revealed='true'], :hover, :focus-within, [data-aiwt-dragging='true'], [data-aiwt-phase='translating'], [data-aiwt-attention='true'][data-aiwt-peeking='true']) .aiwt-fab-grips {
-  opacity: 0;
-}
-
-.aiwt-fab[data-aiwt-hand-x='right'] .aiwt-fab-grips {
-  --aiwt-grips-in-x: 5px;
-}
-
-.aiwt-fab[data-aiwt-hand-x='left'] .aiwt-fab-grips {
-  --aiwt-grips-in-x: -5px;
-}
-
-/* 圆润的小拳头，不是带袖口的圆球；指缝和拇指让它像真的扒住了边缘。 */
-.aiwt-fab-grip {
-  position: absolute;
-  box-sizing: border-box;
-  width: 16px;
-  height: 14px;
-  border: 2px solid var(--aiwt-ink);
-  border-radius: 7px 9px 9px 6px;
-  background: var(--aiwt-butter);
-  box-shadow: 1px 1px 0 var(--aiwt-ink);
-}
-
-.aiwt-fab[data-aiwt-hand-x='right'] .aiwt-fab-grip {
-  --aiwt-grip-pull: -2px;
-  /* 手掌停在内容区边缘内，旋转后的外轮廓也不会压到滚动条。 */
-  left: calc(var(--aiwt-edge-anchor-x, 0px) - 16px);
-}
-
-.aiwt-fab[data-aiwt-hand-x='left'] .aiwt-fab-grip {
-  --aiwt-grip-pull: 2px;
-  left: var(--aiwt-edge-anchor-x, 0px);
-}
-
-.aiwt-fab-grip-upper {
-  top: 20px;
-  rotate: -5deg;
-}
-
-.aiwt-fab-grip-lower {
-  top: 39px;
-  rotate: 4deg;
-}
-
-/* 三条指缝画在手掌朝页面的一侧；左右贴边时镜像。 */
-.aiwt-fab-grip-finger {
-  position: absolute;
-  width: 6px;
-  height: 3px;
-  border-top: 1.5px solid var(--aiwt-ink);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.aiwt-fab-grip-finger:nth-child(1) {
-  top: 2px;
-}
-
-.aiwt-fab-grip-finger:nth-child(2) {
-  top: 6px;
-}
-
-.aiwt-fab-grip-finger:nth-child(3) {
-  top: 10px;
-}
-
-.aiwt-fab[data-aiwt-hand-x='left'] .aiwt-fab-grip-finger {
-  right: 2px;
-}
-
-.aiwt-fab[data-aiwt-hand-x='right'] .aiwt-fab-grip-finger {
-  left: 2px;
-}
-
-/* 拇指从手掌下沿扣回页面一侧，补上“抓住”这个动作。 */
-.aiwt-fab-grip-thumb {
-  position: absolute;
-  z-index: 2;
-  bottom: -3px;
-  box-sizing: border-box;
-  width: 7px;
-  height: 8px;
-  border: 2px solid var(--aiwt-ink);
-  border-radius: 50%;
-  background: var(--aiwt-butter);
-}
-
-.aiwt-fab[data-aiwt-hand-x='left'] .aiwt-fab-grip-thumb {
-  right: 0;
-}
-
-.aiwt-fab[data-aiwt-hand-x='right'] .aiwt-fab-grip-thumb {
-  left: 0;
-}
-
 .aiwt-fab[data-aiwt-phase='cancelled'] .aiwt-fab-main {
   background: #ddd5c5;
 }
@@ -304,38 +183,24 @@
 
 .aiwt-fab-sign {
   position: absolute;
-  top: -8px;
-  left: calc(50% - 10.5px);
-  right: auto;
-  bottom: auto;
+  right: -4px;
+  bottom: -4px;
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   padding: 0;
-  border: 1.5px solid var(--aiwt-ink);
+  border: 2px solid var(--aiwt-ink);
   border-radius: 50%;
   background: #fffdf7;
   color: var(--aiwt-ink);
-  box-shadow: 1px 1px 0 var(--aiwt-ink);
-  font-size: 10px;
+  box-shadow: 1.5px 1.5px 0 var(--aiwt-ink);
+  font-size: 12px;
   font-weight: 900;
   line-height: 1;
-  rotate: 6deg;
-  transform-origin: 50% 70%;
+  rotate: -6deg;
   z-index: 2;
   transition: background-color 200ms ease-out;
-}
-
-/* 译/原 是别在头顶中央的小装饰；贴边时只向页面一侧偏 3px。 */
-.aiwt-fab[data-aiwt-edge-x='right'] .aiwt-fab-sign {
-  left: calc(50% - 13.5px);
-  rotate: -8deg;
-}
-
-.aiwt-fab[data-aiwt-edge-x='left'] .aiwt-fab-sign {
-  left: calc(50% - 7.5px);
-  rotate: 8deg;
 }
 
 .aiwt-fab[data-aiwt-phase='translating'] .aiwt-fab-sign {
@@ -393,23 +258,18 @@
 }
 
 .aiwt-fab[data-aiwt-edge-x='right']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-main {
-  rotate: -8deg;
+  rotate: -12deg;
 }
 
 .aiwt-fab[data-aiwt-edge-x='left']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-main {
-  rotate: 8deg;
+  rotate: 12deg;
 }
 
-/* 探头时头摆正一点，像主动探出来看。 */
-.aiwt-fab[data-aiwt-peeking='true'][data-aiwt-edge-x='right']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-main {
-  rotate: -4deg;
+/* 探头时只留靠页面一侧的眼睛，像歪着头从屏幕后面偷看。 */
+.aiwt-fab[data-aiwt-edge-x='right']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye-right,
+.aiwt-fab[data-aiwt-edge-x='left']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye-left {
+  opacity: 0;
 }
-
-.aiwt-fab[data-aiwt-peeking='true'][data-aiwt-edge-x='left']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-main {
-  rotate: 4deg;
-}
-
-/* 待机、探头和悬停都保留双眼；探头感由贴边和两只小手表达，不再遮住一只眼。 */
 
 .aiwt-fab[data-aiwt-dragging='true'] .aiwt-fab-sign {
   rotate: -12deg;
@@ -929,55 +789,21 @@
   }
 }
 
-@keyframes aiwt-peek-look {
-  0%,
-  100% {
-    translate: 0 0;
-  }
-  22% {
-    translate: -1.5px 0;
-  }
-  48% {
-    translate: 1.5px 0;
-  }
-  70% {
-    translate: 0.5px 0;
-  }
-}
-
-@keyframes aiwt-grip-pull {
-  0%,
-  100% {
-    translate: 0 0;
-  }
-  45% {
-    translate: var(--aiwt-grip-pull, 0px) 0;
-  }
-}
-
-@keyframes aiwt-grips-in {
-  0% {
-    opacity: 0;
-    translate: var(--aiwt-grips-in-x, 0px) 0;
-  }
-  100% {
-    opacity: 1;
-    translate: 0 0;
-  }
-}
-
 @keyframes aiwt-sign-pop {
   0% {
     opacity: 0;
     scale: 0.5;
+    rotate: -14deg;
   }
   60% {
     opacity: 1;
     scale: 1.12;
+    rotate: -3deg;
   }
   100% {
     opacity: 1;
     scale: 1;
+    rotate: -6deg;
   }
 }
 
@@ -1148,28 +974,9 @@
   }
 
   /* 探头待机时，靠页面一侧的眼睛偶尔眨一下。 */
-  .aiwt-fab[data-aiwt-phase='idle'][data-aiwt-edge-x='right']:not([data-aiwt-peeking='true']):not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye-left,
-  .aiwt-fab[data-aiwt-phase='idle'][data-aiwt-edge-x='left']:not([data-aiwt-peeking='true']):not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye-right {
+  .aiwt-fab[data-aiwt-phase='idle'][data-aiwt-edge-x='right']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye-left,
+  .aiwt-fab[data-aiwt-phase='idle'][data-aiwt-edge-x='left']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye-right {
     animation: aiwt-peek-blink 5.8s ease-in-out infinite;
-  }
-
-  /* 自动探头：两只眼一起眨一次，脸也左右看一下。 */
-  .aiwt-fab[data-aiwt-phase='idle'][data-aiwt-peeking='true']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-eye {
-    animation: aiwt-blink 680ms 900ms both;
-  }
-
-  .aiwt-fab[data-aiwt-phase='idle'][data-aiwt-peeking='true']:not(:hover):not(:focus-within):not([data-aiwt-dragging='true']) .aiwt-fab-face {
-    animation: aiwt-peek-look 2.2s ease-in-out;
-  }
-
-  /* 探头时两只手往页面里轻轻一拉。 */
-  .aiwt-fab[data-aiwt-peeking='true'] .aiwt-fab-grip {
-    animation: aiwt-grip-pull 700ms ease-out;
-  }
-
-  /* 拖到边缘松手时，两只手从屏幕后伸出来。 */
-  .aiwt-fab-grips {
-    animation: aiwt-grips-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   .aiwt-fab-alert {

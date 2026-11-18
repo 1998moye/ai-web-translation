@@ -5,7 +5,7 @@ const EXTENSION_PATH = path.resolve(process.env.AIWT_EXTENSION_PATH ?? '.output-
 
 /**
  * 经典滚动条会占用布局宽度。这里用独立浏览器上下文强制非覆盖式滚动条，
- * 验证贴边角色与两只手都停在内容区边缘，而不是滑到滚动条下面。
+ * 验证贴边角色停在内容区边缘，而不是滑到滚动条下面。
  */
 test('有经典滚动条时贴边角色不被滚动条遮住', async () => {
   const context = await chromium.launchPersistentContext('', {
@@ -46,24 +46,12 @@ test('有经典滚动条时贴边角色不被滚动条遮住', async () => {
     await page.waitForTimeout(700);
 
     await expect(root).toHaveAttribute('data-aiwt-edge-x', 'right');
-    await expect(root).toHaveAttribute('data-aiwt-hand-x', 'right');
-    await expect(page.locator('.aiwt-fab-grip')).toHaveCount(2);
+    await expect(page.locator('.aiwt-fab-grip')).toHaveCount(0);
 
     const rest = await fab.boundingBox();
     if (!rest) throw new Error('缺少探头位置');
+    expect(rest.x).toBeLessThan(metrics.clientWidth);
     expect(metrics.clientWidth - rest.x).toBeGreaterThanOrEqual(25);
-
-    const sign = await page.locator('.aiwt-fab-sign').boundingBox();
-    if (!sign) throw new Error('缺少徽章位置');
-    expect(sign.x).toBeGreaterThanOrEqual(0);
-    expect(sign.x + sign.width).toBeLessThanOrEqual(metrics.clientWidth + 1);
-
-    const gripRightEdges = await page
-      .locator('.aiwt-fab-grip')
-      .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().right));
-    for (const right of gripRightEdges) {
-      expect(right).toBeLessThanOrEqual(metrics.clientWidth + 1.5);
-    }
 
     // 悬停时完整滑出，右边缘仍停在内容区，不进入滚动条。
     await page.mouse.move(rest.x + 12, centerY);

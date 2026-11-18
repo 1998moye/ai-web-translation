@@ -124,6 +124,21 @@ function eligiblePayload(element: HTMLElement, allowInNavigation: boolean): Inli
   return buildInlinePayload(element);
 }
 
+/**
+ * 仓库元数据这类“多链接/短标签拼起来的一行”不是正文。
+ * 在它下面插入整块译文会把下一行挤开，应该交给行内界面文本处理，或保持原样。
+ */
+function isInlineControlRow(element: HTMLElement): boolean {
+  if (element.tagName.toUpperCase() !== 'DIV') return false;
+  if (element.querySelectorAll(INTERFACE_SELECTOR).length < 2) return false;
+
+  let directText = '';
+  for (const node of Array.from(element.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE) directText += node.nodeValue ?? '';
+  }
+  return normalizeText(directText).length < 30;
+}
+
 function collectBodyCandidates(root: Element): Candidate[] {
   const candidates: Candidate[] = [];
 
@@ -133,6 +148,7 @@ function collectBodyCandidates(root: Element): Candidate[] {
     if (!proseTextOutsideControls(element)) return;
     if (requireInlineOnly) {
       if (hasBlockishChild(element)) return;
+      if (isInlineControlRow(element)) return;
       if (normalizeText(element.textContent ?? '').length < DIV_MIN_TEXT_LENGTH) return;
     }
     candidates.push({ element, payload });

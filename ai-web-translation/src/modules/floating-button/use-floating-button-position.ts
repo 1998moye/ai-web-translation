@@ -31,10 +31,6 @@ export interface FloatingButtonPositionApi {
     y: 'top' | 'bottom' | null;
   };
   hoverOffset: { left: number; top: number };
-  /** 自动探头时保留的屏幕内缩量：比完全展开多藏 12px，形成“探出半个头”的层次。 */
-  peekOffset: { left: number; top: number };
-  /** 视口侧边在按钮局部坐标里的 x；两只手用它钉在屏幕边缘，不跟着头滑。 */
-  edgeAnchorX: number | null;
   buttonRef: RefObject<HTMLDivElement | null>;
   handlers: FloatingButtonHandlers;
 }
@@ -233,23 +229,6 @@ export function useFloatingButtonPosition({
             ? -position.top
             : 0,
     },
-    peekOffset: {
-      left:
-        edgeX === 'right'
-          ? layout.viewport.width - layout.size.width - position.left + 12
-          : edgeX === 'left'
-            ? -position.left - 12
-            : 0,
-      // 上下贴边不做自动缩进：横向切掉脸会把眼睛藏掉，侧面才是探头的方向。
-      // 侧边探头时稍微往上一抬，像从墙后探身出来。
-      top: edgeX !== null ? -2 : 0,
-    },
-    edgeAnchorX:
-      edgeX === 'right'
-        ? layout.viewport.width - position.left
-        : edgeX === 'left'
-          ? -position.left
-          : null,
     buttonRef,
     handlers: {
       onPointerDown,
