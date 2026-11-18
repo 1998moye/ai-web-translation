@@ -167,7 +167,9 @@ export function TranslationProfilesPanel({ repository, promptRepository }: Trans
         {loading && <p className="aiwt-hint">正在读取本机配置…</p>}
 
         {!loading && state.profiles.length === 0 && (
-          <p className="aiwt-empty">还没有翻译服务配置。创建一份后即可用于划词翻译与整页翻译。</p>
+          <p className="aiwt-empty">
+            还没有翻译服务配置。本扩展不内置 AI 模型，请先创建一份你自己的 OpenAI 兼容服务；配置完成后即可用于英文→中文的划词翻译与整页翻译。
+          </p>
         )}
 
         {state.profiles.length > 0 && (

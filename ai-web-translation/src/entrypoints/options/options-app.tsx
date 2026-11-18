@@ -26,7 +26,7 @@ const PAGES: readonly PageDefinition[] = [
     label: '翻译服务',
     hint: '模型、地址与密钥',
     title: '翻译服务',
-    subtitle: '配置模型、请求地址与高级参数。整页翻译和划词翻译共用同一份配置目录。',
+    subtitle: '仅支持英文→中文。填写你自己的 OpenAI 兼容服务；本扩展不内置模型，也不提供共享密钥。',
   },
   {
     id: 'prompt',
@@ -93,12 +93,10 @@ export function OptionsApp() {
       <div className="aiwt-shell">
         <aside className="aiwt-sidebar">
           <div className="aiwt-brand">
-            <span className="aiwt-brand-mark" aria-hidden="true">
-              译
-            </span>
+            <img className="aiwt-brand-icon" src="/icons/icon-48.png" width="42" height="42" alt="" />
             <div className="aiwt-brand-text">
               <p className="aiwt-brand-name">AI 网页翻译</p>
-              <p className="aiwt-brand-tag">整页 · 划词 · 自动翻译</p>
+              <p className="aiwt-brand-tag">英文 → 中文 · 自带 AI 配置</p>
             </div>
           </div>
 
@@ -140,6 +138,15 @@ export function OptionsApp() {
               </div>
               <span className="aiwt-page-chip">{current.label}</span>
             </header>
+
+            <div className="aiwt-app-notice" role="note">
+              <span className="aiwt-app-notice-mark" aria-hidden="true">
+                EN → 中
+              </span>
+              <p>
+                <strong>只做英文→中文。</strong>不内置 AI 模型或共享密钥；请先配置你自己的 OpenAI 兼容服务，费用由你与服务商结算。
+              </p>
+            </div>
 
             <div className="aiwt-page" key={page}>
               {page === 'models' && (

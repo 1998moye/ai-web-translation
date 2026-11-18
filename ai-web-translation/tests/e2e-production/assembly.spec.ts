@@ -21,6 +21,29 @@ test('生产构建不包含 fake Engine 或模拟译文', async () => {
   expect(offenders).toEqual([]);
 });
 
+test('生产构建的 manifest 图标齐全且尺寸正确', async () => {
+  const root = '.output/chrome-mv3';
+  const manifest = JSON.parse(await readFile(path.join(root, 'manifest.json'), 'utf8')) as {
+    icons?: Record<string, string>;
+    action?: { default_icon?: Record<string, string> };
+  };
+
+  expect(manifest.icons).toEqual({
+    16: 'icons/icon-16.png',
+    32: 'icons/icon-32.png',
+    48: 'icons/icon-48.png',
+    128: 'icons/icon-128.png',
+  });
+  expect(manifest.action?.default_icon).toEqual(manifest.icons);
+
+  for (const [size, relativePath] of Object.entries(manifest.icons ?? {})) {
+    const bytes = await readFile(path.join(root, relativePath));
+    expect(bytes.subarray(1, 4).toString()).toBe('PNG');
+    expect(bytes.readUInt32BE(16)).toBe(Number(size));
+    expect(bytes.readUInt32BE(20)).toBe(Number(size));
+  }
+});
+
 async function walk(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const files: string[] = [];

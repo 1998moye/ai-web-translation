@@ -1,6 +1,7 @@
-# AI 网页翻译（扩展实现）
+# AI 网页翻译 · 英文转中文（扩展实现）
 
-Manifest V3 浏览器扩展：用你自己配置的 AI 翻译服务做划词翻译与整页双语翻译。
+Manifest V3 浏览器扩展：用你自己配置的 AI 翻译服务，把英文网页翻译成中文。
+只做英文→中文，不内置 AI 模型、共享密钥或翻译服务器；首次使用需要在设置页配置自己的 OpenAI 兼容服务。
 
 需求基线：[`../.scratch/ai-web-translation/spec.md`](../.scratch/ai-web-translation/spec.md)，
 领域术语：[`../GLOSSARY.md`](../GLOSSARY.md)。
@@ -106,6 +107,19 @@ npx playwright install chromium
 - 生产端到端：`tests/e2e-production/`，加载 `.output` 生产构建，翻译服务指向 `tests/e2e/fixtures-server.mjs` 提供的 mock Chat Completions，覆盖配置、划词、整页、缓存、取消、失败重试、重新翻译及错误场景
 - 真实服务验收：使用用户提供的兼容服务手动跑一次完整流程（整页 + 划词）
 
+## 商店发布
+
+商店资料、图标、截图、宣传图与打包脚本见 [`store/PUBLISHING.md`](store/PUBLISHING.md)、
+[`CHROMEWEBSTORE.md`](CHROMEWEBSTORE.md) 与 [`EDGESTORE.md`](EDGESTORE.md)。
+
+```bash
+npm run store:assets       # 生成图标与 440×280 / 1400×560 宣传图
+npm run store:screenshots  # 用生产构建生成本地演示截图（1280×800）
+npm run store:package      # 生成 Chrome / Edge 共用的商店 ZIP
+```
+
+商店 ZIP 位于 `store/packages/`；图标在 `public/icons/`，会被 WXT 自动复制进扩展包。
+
 ## 真实站点抽查（2026-11-17，mock 服务）
 
 | 站点 | 正文译文 | 界面文本 | 恢复原文 | 代码块 |
@@ -118,6 +132,8 @@ npx playwright install chromium
 
 ## 当前限制
 
+- 只支持英文→中文；不提供中文→英文或其他语言对。
+- 不内置 AI 模型、额度或共享密钥；必须自行配置 OpenAI 兼容服务。
 - 正文单元按段落级识别（段落、列表项、标题、表格单元格等），复杂网页持续适配
 - 界面文本用译文替换元素文本，并用 `title` 提供英文原文；站点自建 tooltip 会被临时覆盖，恢复时还原
 - 自动翻译只按完整域名和页面英文判断，不保证所有复杂站点；SPA 内容在会话开启后通过动态监听处理

@@ -14,6 +14,8 @@ test('设置页展示页签、后台状态与两类独立的网站偏好', async
   await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
 
   await expect(optionsPage.getByRole('heading', { name: 'AI 网页翻译' })).toBeVisible();
+  await expect(optionsPage.locator('.aiwt-app-notice')).toContainText('只做英文→中文');
+  await expect(optionsPage.locator('.aiwt-app-notice')).toContainText('不内置 AI 模型');
   await expect(optionsPage.locator('.aiwt-health')).toContainText('扩展后台已连接');
   await expect(optionsPage.getByRole('link', { name: /翻译服务/ })).toHaveAttribute('aria-current', 'page');
 

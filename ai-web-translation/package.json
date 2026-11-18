@@ -1,7 +1,7 @@
 {
   "name": "ai-web-translation",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "浏览器 AI 翻译插件：可配置翻译服务的划词翻译与整页双语翻译",
   "scripts": {
@@ -15,7 +15,10 @@
     "test:e2e": "playwright test",
     "verify": "npm run compile && npm run test && npm run build && npm run build:dev-fake",
     "e2e": "npm run build:dev-fake && playwright test",
-    "e2e:prod": "npm run build && playwright test -c playwright.prod.config.ts"
+    "e2e:prod": "npm run build && playwright test -c playwright.prod.config.ts",
+    "store:assets": "node scripts/generate-brand-assets.mjs",
+    "store:screenshots": "npm run build && node scripts/generate-store-screenshots.mjs",
+    "store:package": "npm run build && node scripts/package-store.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",

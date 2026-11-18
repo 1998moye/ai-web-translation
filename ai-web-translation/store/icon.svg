@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect x="3" y="3" width="122" height="122" rx="28" fill="#FFD166" stroke="#2D2A26" stroke-width="6"/>
+  <text x="28" y="86" text-anchor="middle" fill="#2D2A26" font-family="Segoe UI, Arial, sans-serif" font-size="54" font-weight="800">A</text>
+  <path d="M50 65h20" fill="none" stroke="#EF6F53" stroke-width="5" stroke-linecap="round"/>
+  <path d="M64 56l9 9-9 9" fill="none" stroke="#EF6F53" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="94" y="86" text-anchor="middle" fill="#2D2A26" font-family="Microsoft YaHei, Noto Sans SC, sans-serif" font-size="48" font-weight="700">文</text>
+  <g transform="translate(96 10)">
+    <rect width="22" height="22" rx="7" fill="#2A9D8F" stroke="#2D2A26" stroke-width="2.5"/>
+    <circle cx="7" cy="8" r="2.6" fill="#FFFAF0" stroke="#2D2A26" stroke-width="1.4"/>
+    <path d="M9 10l6 6M12 13l-2 2M14 15l-2 2" fill="none" stroke="#FFFAF0" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+</svg>
