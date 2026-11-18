@@ -31,6 +31,10 @@ export interface FloatingButtonPositionApi {
     y: 'top' | 'bottom' | null;
   };
   hoverOffset: { left: number; top: number };
+  /** 自动探头时保留的屏幕内缩量：比完全展开多藏 12px，形成“探出半个头”的层次。 */
+  peekOffset: { left: number; top: number };
+  /** 视口侧边在按钮局部坐标里的 x；两只手用它钉在屏幕边缘，不跟着头滑。 */
+  edgeAnchorX: number | null;
   buttonRef: RefObject<HTMLDivElement | null>;
   handlers: FloatingButtonHandlers;
 }
@@ -43,7 +47,12 @@ export interface UseFloatingButtonPositionOptions {
 }
 
 function readViewport(win: Window): { width: number; height: number } {
-  return { width: win.innerWidth, height: win.innerHeight };
+  // 使用布局视口，排除经典滚动条占用的宽度：否则贴边按钮会被滚动条遮住。
+  const root = win.document.documentElement;
+  return {
+    width: root?.clientWidth || win.innerWidth,
+    height: root?.clientHeight || win.innerHeight,
+  };
 }
 
 function measure(element: HTMLElement | null): { width: number; height: number } {
@@ -106,14 +115,30 @@ export function useFloatingButtonPosition({
   }, [store, updatePosition, win]);
 
   useEffect(() => {
-    const handleResize = (): void => {
-      const size = measure(buttonRef.current);
+    let lastViewport = readViewport(win);
+
+    const syncViewport = (): void => {
       const viewport = readViewport(win);
+      // 页面内容变长/变短会触发 ResizeObserver，但布局视口没变时不必重排按钮。
+      if (viewport.width === lastViewport.width && viewport.height === lastViewport.height) return;
+      lastViewport = viewport;
+      const size = measure(buttonRef.current);
       setLayout({ viewport, size });
       updatePosition(clampButtonPosition(positionRef.current, viewport, size));
     };
-    win.addEventListener('resize', handleResize);
-    return () => win.removeEventListener('resize', handleResize);
+
+    win.addEventListener('resize', syncViewport);
+    let observer: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      // 滚动条出现/消失不会触发 window.resize；监听根元素尺寸变化来重新夹取。
+      observer = new ResizeObserver(syncViewport);
+      observer.observe(win.document.documentElement);
+    }
+
+    return () => {
+      win.removeEventListener('resize', syncViewport);
+      observer?.disconnect();
+    };
   }, [updatePosition, win]);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>): void => {
@@ -137,10 +162,10 @@ export function useFloatingButtonPosition({
     const delta = { left: event.clientX - drag.startX, top: event.clientY - drag.startY };
     if (!drag.moved && isDragGesture(delta.left, delta.top)) {
       drag.moved = true;
-      // 用当前视觉位置补偿探头/悬停偏移：拖动开始时不会先跳一下再跟手。
-      const rect = buttonRef.current?.getBoundingClientRect();
+      // 用探头层的视觉位置作为拖动起点：去掉贴边偏移/悬停偏移后，按钮不会在拖起瞬间跳一下。
+      const rect = buttonRef.current?.querySelector<HTMLElement>('.aiwt-fab-peek')?.getBoundingClientRect();
       if (rect) {
-        drag.origin = { left: rect.left - delta.left, top: rect.top - delta.top };
+        drag.origin = { left: rect.left, top: rect.top };
       }
       setDragging(true);
     }
@@ -189,7 +214,7 @@ export function useFloatingButtonPosition({
   return {
     position,
     dragging,
-    panelSide: panelSideFor(position.left, win.innerWidth),
+    panelSide: panelSideFor(position.left, layout.viewport.width),
     // 靠近顶部时面板向下展开，避免被视口上边缘裁切。
     panelVertical: position.top < 380 ? 'down' : 'up',
     edges: { x: edgeX, y: edgeY },
@@ -208,6 +233,23 @@ export function useFloatingButtonPosition({
             ? -position.top
             : 0,
     },
+    peekOffset: {
+      left:
+        edgeX === 'right'
+          ? layout.viewport.width - layout.size.width - position.left + 12
+          : edgeX === 'left'
+            ? -position.left - 12
+            : 0,
+      // 上下贴边不做自动缩进：横向切掉脸会把眼睛藏掉，侧面才是探头的方向。
+      // 侧边探头时稍微往上一抬，像从墙后探身出来。
+      top: edgeX !== null ? -2 : 0,
+    },
+    edgeAnchorX:
+      edgeX === 'right'
+        ? layout.viewport.width - position.left
+        : edgeX === 'left'
+          ? -position.left
+          : null,
     buttonRef,
     handlers: {
       onPointerDown,

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { PageControllerSnapshot } from '../page-translation/page-translation-controller';
 import type { ButtonPositionStore } from './button-position-store';
@@ -21,13 +21,72 @@ export interface FloatingButtonProps {
   actions: FloatingButtonActions;
 }
 
+/** 贴边待机时的自动探头节奏。 */
+const PEEK_FIRST_DELAY_MS = 2000;
+const PEEK_HOLD_MS = 2600;
+const PEEK_INTERVAL_MS = 6200;
+
 export function FloatingButton({ snapshot, positionStore, actions }: FloatingButtonProps) {
-  const { position, dragging, panelSide, panelVertical, edges, hoverOffset, buttonRef, handlers } =
-    useFloatingButtonPosition({
-      store: positionStore,
-      onActivate: actions.onMainAction,
-    });
+  const {
+    position,
+    dragging,
+    panelSide,
+    panelVertical,
+    edges,
+    hoverOffset,
+    peekOffset,
+    edgeAnchorX,
+    buttonRef,
+    handlers,
+  } = useFloatingButtonPosition({
+    store: positionStore,
+    onActivate: actions.onMainAction,
+  });
   const [revealed, setRevealed] = useState(false);
+  const [peeking, setPeeking] = useState(false);
+
+  const translating = snapshot.phase === 'translating';
+  const attention = snapshot.phase === 'completed' || snapshot.phase === 'partial-failure';
+  const canPeek = edges.x !== null && !revealed && !dragging && !translating;
+
+  useEffect(() => {
+    if (!canPeek) {
+      setPeeking(false);
+      return;
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setPeeking(false);
+      return;
+    }
+
+    let cancelled = false;
+    let showTimer: number | undefined;
+    let hideTimer: number | undefined;
+
+    function begin(): void {
+      if (cancelled) return;
+      setPeeking(true);
+      hideTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        setPeeking(false);
+        schedule(PEEK_INTERVAL_MS);
+      }, attention ? 3000 : PEEK_HOLD_MS);
+    }
+
+    function schedule(delay: number): void {
+      showTimer = window.setTimeout(begin, delay);
+    }
+
+    // 完成/失败先完整露一次脸，让星芒和感叹号可见；平时先藏一会儿再探头。
+    if (attention) begin();
+    else schedule(PEEK_FIRST_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      if (showTimer !== undefined) window.clearTimeout(showTimer);
+      if (hideTimer !== undefined) window.clearTimeout(hideTimer);
+    };
+  }, [canPeek, attention, snapshot.phase]);
 
   const progress = snapshot.progress;
   const done = progress ? progress.succeeded + progress.failed : 0;
@@ -45,6 +104,9 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
     translate: `${position.left}px ${position.top}px`,
     '--aiwt-hover-x': `${hoverOffset.left}px`,
     '--aiwt-hover-y': `${hoverOffset.top}px`,
+    '--aiwt-peek-out-x': `${peekOffset.left}px`,
+    '--aiwt-peek-out-y': `${peekOffset.top}px`,
+    '--aiwt-edge-anchor-x': `${edgeAnchorX ?? 0}px`,
   } as CSSProperties;
 
   return (
@@ -55,6 +117,9 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
       data-aiwt-phase={snapshot.phase}
       data-aiwt-dragging={dragging ? 'true' : 'false'}
       data-aiwt-revealed={revealed ? 'true' : 'false'}
+      data-aiwt-peeking={peeking ? 'true' : 'false'}
+      data-aiwt-attention={attention ? 'true' : 'false'}
+      data-aiwt-hand-x={edges.x ?? 'none'}
       data-aiwt-panel-side={panelSide}
       data-aiwt-panel-v={panelVertical}
       data-aiwt-edge-x={edges.x ?? 'none'}
@@ -217,6 +282,23 @@ export function FloatingButton({ snapshot, positionStore, actions }: FloatingBut
         </div>
       </div>
       </div>
+
+      {edges.x && !dragging && !translating && (
+        <div className="aiwt-fab-grips" aria-hidden="true">
+          <span className="aiwt-fab-grip aiwt-fab-grip-upper">
+            <span className="aiwt-fab-grip-finger" />
+            <span className="aiwt-fab-grip-finger" />
+            <span className="aiwt-fab-grip-finger" />
+            <span className="aiwt-fab-grip-thumb" />
+          </span>
+          <span className="aiwt-fab-grip aiwt-fab-grip-lower">
+            <span className="aiwt-fab-grip-finger" />
+            <span className="aiwt-fab-grip-finger" />
+            <span className="aiwt-fab-grip-finger" />
+            <span className="aiwt-fab-grip-thumb" />
+          </span>
+        </div>
+      )}
     </div>
   );
 }
