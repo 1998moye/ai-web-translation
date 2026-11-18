@@ -93,15 +93,17 @@ test('贴边的角色会定时探头，探头时露出完整表情和两只扒�
   await expect(page.locator('.aiwt-fab-grip-thumb')).toHaveCount(2);
   await expect(page.locator('.aiwt-fab-grip-upper')).toBeVisible();
 
-  // 贴右边时徽章留在可见脸部的右下角，不被屏幕裁掉；两只手一上一下扒住边缘。
+  // 译/原是头顶的小装饰；贴边和探头时都应完整露在头部上沿。
   const restSign = await page.locator('.aiwt-fab-sign').boundingBox();
+  const restFab = await fab.boundingBox();
   const handBoxes = await page
     .locator('.aiwt-fab-grip')
     .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().toJSON()));
-  if (!restSign || handBoxes.length !== 2) throw new Error('缺少徽章或手的位置');
+  if (!restSign || !restFab || handBoxes.length !== 2) throw new Error('缺少徽章或手的位置');
   expect(restSign.x).toBeGreaterThanOrEqual(0);
   expect(restSign.x + restSign.width).toBeLessThanOrEqual(viewport.width + 1);
-  expect(restSign.x + restSign.width / 2).toBeGreaterThan(viewport.width / 2);
+  expect(restSign.y).toBeGreaterThanOrEqual(0);
+  expect(restSign.y).toBeLessThan(restFab.y + restFab.height / 2);
   expect(handBoxes[0].top).toBeLessThan(handBoxes[1].top);
 
   // 第一次自动探头约在 2 秒后开始；探头后应从 36px 静态露出扩到 44px。
@@ -142,7 +144,8 @@ test('拖到视口边缘后藏在屏幕外探头，悬停完整弹出', async ({
   if (!restSign) throw new Error('缺少徽章位置');
   expect(restSign.x).toBeGreaterThanOrEqual(0);
   expect(restSign.x + restSign.width).toBeLessThanOrEqual(viewport.width + 1);
-  expect(restSign.x + restSign.width / 2).toBeGreaterThan(viewport.width / 2);
+  expect(restSign.y).toBeGreaterThanOrEqual(0);
+  expect(restSign.y).toBeLessThan(peek.y + peek.height / 2);
 
   // 悬停后完整滑出，贴住屏幕边缘，不再被裁切。
   await fab.hover();
@@ -204,10 +207,12 @@ test('按钮拖到左侧时展开面板仍在视口内', async ({ page }) => {
 
   const viewport = page.viewportSize();
   const restSign = await page.locator('.aiwt-fab-sign').boundingBox();
-  if (!viewport || !restSign) throw new Error('缺少徽章位置');
+  const restFab = await fab.boundingBox();
+  if (!viewport || !restSign || !restFab) throw new Error('缺少徽章位置');
   expect(restSign.x).toBeGreaterThanOrEqual(0);
   expect(restSign.x + restSign.width).toBeLessThanOrEqual(viewport.width);
-  expect(restSign.x + restSign.width / 2).toBeLessThan(viewport.width / 2);
+  expect(restSign.y).toBeGreaterThanOrEqual(0);
+  expect(restSign.y).toBeLessThan(restFab.y + restFab.height / 2);
 
   await openFabPanel(page);
   const panelBox = await page.locator('.aiwt-fab-panel').boundingBox();
@@ -217,8 +222,9 @@ test('按钮拖到左侧时展开面板仍在视口内', async ({ page }) => {
 
   expect(panelBox.x).toBeGreaterThanOrEqual(0);
   expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(viewport.width);
-  // 贴左边时，译/原徽章也要在按钮左侧，而不是跑到页面里侧。
-  expect(signBox.x).toBeLessThan(buttonBox.x + buttonBox.width / 2);
+  // 完整展开后，装饰仍在头部上沿，而不是落回按钮下方。
+  expect(signBox.y).toBeLessThan(buttonBox.y + buttonBox.height / 2);
+  expect(signBox.x).toBeGreaterThanOrEqual(0);
 });
 
 test('按钮靠近顶部时面板向下展开且不超出视口', async ({ page }) => {

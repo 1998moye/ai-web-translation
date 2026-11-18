@@ -163,10 +163,10 @@
 .aiwt-fab-grip {
   position: absolute;
   box-sizing: border-box;
-  width: 18px;
-  height: 16px;
+  width: 16px;
+  height: 14px;
   border: 2px solid var(--aiwt-ink);
-  border-radius: 8px 10px 10px 7px;
+  border-radius: 7px 9px 9px 6px;
   background: var(--aiwt-butter);
   box-shadow: 1px 1px 0 var(--aiwt-ink);
 }
@@ -174,7 +174,7 @@
 .aiwt-fab[data-aiwt-hand-x='right'] .aiwt-fab-grip {
   --aiwt-grip-pull: -2px;
   /* 手掌停在内容区边缘内，旋转后的外轮廓也不会压到滚动条。 */
-  left: calc(var(--aiwt-edge-anchor-x, 0px) - 18px);
+  left: calc(var(--aiwt-edge-anchor-x, 0px) - 16px);
 }
 
 .aiwt-fab[data-aiwt-hand-x='left'] .aiwt-fab-grip {
@@ -183,19 +183,19 @@
 }
 
 .aiwt-fab-grip-upper {
-  top: 18px;
+  top: 20px;
   rotate: -5deg;
 }
 
 .aiwt-fab-grip-lower {
-  top: 41px;
+  top: 39px;
   rotate: 4deg;
 }
 
 /* 三条指缝画在手掌朝页面的一侧；左右贴边时镜像。 */
 .aiwt-fab-grip-finger {
   position: absolute;
-  width: 7px;
+  width: 6px;
   height: 3px;
   border-top: 1.5px solid var(--aiwt-ink);
   border-radius: 50%;
@@ -203,15 +203,15 @@
 }
 
 .aiwt-fab-grip-finger:nth-child(1) {
-  top: 3px;
+  top: 2px;
 }
 
 .aiwt-fab-grip-finger:nth-child(2) {
-  top: 7px;
+  top: 6px;
 }
 
 .aiwt-fab-grip-finger:nth-child(3) {
-  top: 11px;
+  top: 10px;
 }
 
 .aiwt-fab[data-aiwt-hand-x='left'] .aiwt-fab-grip-finger {
@@ -226,10 +226,10 @@
 .aiwt-fab-grip-thumb {
   position: absolute;
   z-index: 2;
-  bottom: -4px;
+  bottom: -3px;
   box-sizing: border-box;
-  width: 8px;
-  height: 9px;
+  width: 7px;
+  height: 8px;
   border: 2px solid var(--aiwt-ink);
   border-radius: 50%;
   background: var(--aiwt-butter);
@@ -304,57 +304,39 @@
 
 .aiwt-fab-sign {
   position: absolute;
-  right: -4px;
-  bottom: -4px;
+  top: -8px;
+  right: 8px;
+  bottom: auto;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   padding: 0;
-  border: 2px solid var(--aiwt-ink);
+  border: 1.5px solid var(--aiwt-ink);
   border-radius: 50%;
   background: #fffdf7;
   color: var(--aiwt-ink);
-  box-shadow: 1.5px 1.5px 0 var(--aiwt-ink);
-  font-size: 12px;
+  box-shadow: 1px 1px 0 var(--aiwt-ink);
+  font-size: 10px;
   font-weight: 900;
   line-height: 1;
-  rotate: -6deg;
+  rotate: 8deg;
+  transform-origin: 50% 70%;
   z-index: 2;
-  transition:
-    background-color 200ms ease-out,
-    left 220ms cubic-bezier(0.33, 1, 0.68, 1),
-    right 220ms cubic-bezier(0.33, 1, 0.68, 1);
+  transition: background-color 200ms ease-out;
 }
 
-/* 徽章跟着可见的半张脸走：贴边时停在屏幕边缘一侧，而不是被屏幕裁掉。 */
-.aiwt-fab[data-aiwt-edge-x='left'] .aiwt-fab-sign {
-  right: auto;
-  left: 34px;
-  rotate: 6deg;
-}
-
-.aiwt-fab[data-aiwt-edge-x='left'][data-aiwt-peeking='true'] .aiwt-fab-sign {
-  left: 26px;
-}
-
+/* 译/原 是别在头顶的小装饰；贴边时放在朝页面的一侧，静止和探头都露得出来。 */
 .aiwt-fab[data-aiwt-edge-x='right'] .aiwt-fab-sign {
-  right: 34px;
-}
-
-.aiwt-fab[data-aiwt-edge-x='right'][data-aiwt-peeking='true'] .aiwt-fab-sign {
-  right: 26px;
-}
-
-/* 悬停/聚焦/拖动/翻译时按钮完整露出，徽章回到按钮本身的左下/右下角。 */
-.aiwt-fab[data-aiwt-edge-x='left']:is([data-aiwt-revealed='true'], :hover, :focus-within, [data-aiwt-dragging='true'], [data-aiwt-phase='translating'], [data-aiwt-attention='true'][data-aiwt-peeking='true']) .aiwt-fab-sign {
   right: auto;
-  left: 2px;
-  rotate: 6deg;
+  left: 8px;
+  rotate: -8deg;
 }
 
-.aiwt-fab[data-aiwt-edge-x='right']:is([data-aiwt-revealed='true'], :hover, :focus-within, [data-aiwt-dragging='true'], [data-aiwt-phase='translating'], [data-aiwt-attention='true'][data-aiwt-peeking='true']) .aiwt-fab-sign {
-  right: 2px;
+.aiwt-fab[data-aiwt-edge-x='left'] .aiwt-fab-sign {
+  right: 8px;
+  left: auto;
+  rotate: 8deg;
 }
 
 .aiwt-fab[data-aiwt-phase='translating'] .aiwt-fab-sign {
