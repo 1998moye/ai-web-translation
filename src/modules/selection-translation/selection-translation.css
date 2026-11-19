@@ -1,0 +1,190 @@
+/* 划词翻译浮层：全部样式在 Shadow DOM 内，避免污染网页或被网页样式影响。 */
+
+.aiwt-selection-icon {
+  position: fixed;
+  z-index: 2147483001;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 50%;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+}
+
+.aiwt-selection-icon:hover {
+  background: #eff6ff;
+}
+
+.aiwt-selection-icon[data-aiwt-available='false'] {
+  color: #64748b;
+  opacity: 0.72;
+}
+
+.aiwt-selection-icon[data-aiwt-available='false']:hover {
+  background: #f1f5f9;
+}
+
+.aiwt-selection-bubble {
+  position: fixed;
+  z-index: 2147483001;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  width: max-content;
+  min-width: 220px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 10px 12px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: left;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
+}
+
+.aiwt-selection-bubble-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.aiwt-selection-bubble-head button {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.aiwt-selection-bubble-head button:hover {
+  color: #0f172a;
+}
+
+.aiwt-selection-translation,
+.aiwt-selection-loading,
+.aiwt-selection-error,
+.aiwt-selection-pending,
+.aiwt-selection-source {
+  margin: 0;
+}
+
+.aiwt-selection-profiles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.aiwt-selection-profiles select {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 12px;
+}
+
+.aiwt-selection-units {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aiwt-selection-units li {
+  display: grid;
+  gap: 2px;
+}
+
+.aiwt-selection-pending {
+  color: #475569;
+}
+
+.aiwt-selection-translation {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.aiwt-selection-loading {
+  color: #475569;
+}
+
+.aiwt-selection-error {
+  color: #b91c1c;
+}
+
+.aiwt-selection-source {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.5);
+  color: #64748b;
+  font-size: 12px;
+  max-height: 96px;
+  overflow: auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  .aiwt-selection-icon {
+    background: #0f172a;
+    border-color: rgba(148, 163, 184, 0.3);
+    color: #bfdbfe;
+  }
+
+  .aiwt-selection-icon:hover {
+    background: #1e293b;
+  }
+
+  .aiwt-selection-bubble {
+    background: #0f172a;
+    border-color: rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+  }
+
+  .aiwt-selection-bubble-head,
+  .aiwt-selection-source,
+  .aiwt-selection-loading {
+    color: #94a3b8;
+  }
+
+  .aiwt-selection-translation {
+    color: #e2e8f0;
+  }
+
+  .aiwt-selection-error {
+    color: #fca5a5;
+  }
+
+  .aiwt-selection-profiles {
+    color: #94a3b8;
+  }
+
+  .aiwt-selection-profiles select {
+    background: #1e293b;
+    border-color: rgba(148, 163, 184, 0.3);
+    color: #e2e8f0;
+  }
+}

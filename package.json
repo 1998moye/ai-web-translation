@@ -1,0 +1,25 @@
+{
+  "name": "ai-web-translation",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "浏览器 AI 翻译插件：使用自己配置的 AI 服务，把英文网页翻译成中文。",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "prepare:wxt": "wxt prepare",
+    "compile": "wxt prepare && tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@wxt-dev/module-react": "^1.2.2",
+    "typescript": "^5.9.0",
+    "wxt": "^0.21.5"
+  }
+}

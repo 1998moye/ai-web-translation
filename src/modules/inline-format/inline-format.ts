@@ -1,0 +1,446 @@
+import { INLINE_MARKER_PATTERN, stripInlineMarkers } from '@/shared/inline-markers';
+import { normalizeText } from '@/shared/text';
+
+export type InlineWrapTag = 'a' | 'em' | 'strong';
+
+export type InlineFormat =
+  | { marker: string; kind: 'opaque'; tag: 'code' | 'number'; text: string }
+  | {
+      marker: string;
+      kind: 'wrap';
+      tag: InlineWrapTag;
+      href?: string;
+      target?: string;
+      rel?: string;
+    };
+
+export interface InlinePayload {
+  /** 提交给 Translation Engine 的原文，含行内格式占位标记。 */
+  text: string;
+  formats: InlineFormat[];
+}
+
+const CODE_TAGS = new Set(['CODE', 'PRE', 'KBD', 'SAMP', 'VAR', 'TT']);
+
+const SKIP_TAGS = new Set([
+  'SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'SVG', 'CANVAS', 'IFRAME', 'OBJECT', 'EMBED', 'IMG', 'VIDEO',
+  'AUDIO', 'INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'META', 'LINK', 'MAP', 'AREA',
+]);
+
+/** 数字、版本号、日期与区间：用占位标记保护起来，模型没有机会改写它们。 */
+const NUMBER_PATTERN = /\d+(?:[.,:/-]\d+)*/g;
+
+/**
+ * 日期与相对时间（Oct 10、Oct 17, 2026、4h ago、2 days ago）。
+ * 月份名交给模型翻译会把整行元数据改写错，这里连同数字一起原样保留。
+ */
+const DATE_PATTERN =
+  /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:,\s*\d{4})?\b|\b\d+\s*(?:s|m|h|d|w|mo|y|second|minute|hour|day|week|month|year)s?\s+ago\b/g;
+
+const WRAP_TAGS: Record<string, InlineWrapTag> = {
+  A: 'a',
+  EM: 'em',
+  I: 'em',
+  STRONG: 'strong',
+  B: 'strong',
+};
+
+/** 渲染层创建的所有节点都带这个属性，扫描与监听据此忽略插件自身内容。 */
+export const OWN_NODE_ATTRIBUTE = 'data-aiwt';
+
+export const OWN_NODE_SELECTOR = `[${OWN_NODE_ATTRIBUTE}]`;
+
+export function isCodeElement(element: Element): boolean {
+  return CODE_TAGS.has(element.tagName.toUpperCase());
+}
+
+export function isHiddenElement(element: Element): boolean {
+  if (element.hasAttribute('hidden')) return true;
+  if (element.getAttribute('aria-hidden') === 'true') return true;
+  const inlineStyle = (element as HTMLElement).style;
+  if (inlineStyle) {
+    if (inlineStyle.display === 'none') return true;
+    if (inlineStyle.visibility === 'hidden' || inlineStyle.visibility === 'collapse') return true;
+    if (inlineStyle.opacity === '0') return true;
+  }
+  const view = element.ownerDocument?.defaultView;
+  if (!view) return false;
+
+  // 隐藏容器的后代：getComputedStyle 只看元素自身，display 不会从祖先继承。
+  // Chrome 提供 checkVisibility，可以直接判断元素是否参与渲染；其他环境回退到逐层检查。
+  const checkVisibility = (element as Element & {
+    checkVisibility?: (options?: { checkVisibilityCSS?: boolean }) => boolean;
+  }).checkVisibility;
+  if (typeof checkVisibility === 'function') {
+    try {
+      // checkVisibility 只看 display/visibility，不会识别 sr-only 的 1px 裁剪；
+      // 返回 false 时继续走下面的视觉隐藏检查。
+      if (!checkVisibility.call(element, { checkVisibilityCSS: true })) return true;
+    } catch {
+      // 回退到逐层检查。
+    }
+  }
+
+  for (let ancestor: Element | null = element; ancestor; ancestor = ancestor.parentElement) {
+    if (ancestor.hasAttribute('hidden')) return true;
+    try {
+      const computed = view.getComputedStyle(ancestor);
+      if (computed.display === 'none' || computed.visibility === 'hidden' || computed.visibility === 'collapse') {
+        return true;
+      }
+      if (isVisuallyHidden(computed)) return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * 无障碍用的「仅屏幕阅读器可见」文本：绝对定位并裁剪到 1px 左右。
+ *
+ * 例如徽章里的 reputation score。这类文字用户看不见，却会被算进所在容器的
+ * 文字里，让一个纯数字徽章变成翻译单元，于是在旁边多出一份译文。
+ */
+function isVisuallyHidden(computed: CSSStyleDeclaration): boolean {
+  const opacity = Number.parseFloat(computed.getPropertyValue('opacity'));
+  if (Number.isFinite(opacity) && opacity === 0) return true;
+
+  const fontSize = Number.parseFloat(computed.getPropertyValue('font-size'));
+  if (Number.isFinite(fontSize) && fontSize === 0) return true;
+
+  const textIndent = Number.parseFloat(computed.getPropertyValue('text-indent'));
+  if (Number.isFinite(textIndent) && textIndent <= -999) return true;
+
+  const clipPath = computed.getPropertyValue('clip-path');
+  if (clipPath && clipPath.includes('inset(50%)')) return true;
+
+  const position = computed.getPropertyValue('position');
+  const width = Number.parseFloat(computed.getPropertyValue('width'));
+  const height = Number.parseFloat(computed.getPropertyValue('height'));
+  const tiny = Number.isFinite(width) && Number.isFinite(height) && width <= 1 && height <= 1;
+  const overflow = computed.getPropertyValue('overflow');
+
+  // sr-only 文本有时用绝对定位 + 1px 尺寸，有时用 overflow:hidden + 1px 尺寸。
+  if (tiny && (position === 'absolute' || position === 'fixed' || overflow === 'hidden')) return true;
+
+  const clip = computed.getPropertyValue('clip');
+  return Boolean(clip && clip !== 'auto');
+}
+
+function shouldSkipElement(element: Element): boolean {
+  if (SKIP_TAGS.has(element.tagName.toUpperCase())) return true;
+  if (element.hasAttribute(OWN_NODE_ATTRIBUTE)) return true;
+  if (isHiddenElement(element)) return true;
+  if (element.getAttribute('contenteditable') === '' || element.getAttribute('contenteditable') === 'true') {
+    return true;
+  }
+  return false;
+}
+
+/** 扫描时整体跳过的元素（图标、输入框、脚本等）；界面文本渲染时需原样保留。 */
+export function isSkippedElement(element: Element): boolean {
+  return shouldSkipElement(element);
+}
+
+/**
+ * 把一个元素的可见文本收集为翻译单元原文：
+ * - 行内代码变为不可翻译的占位标记，内容不进入请求；
+ * - 链接与强调被标记包裹，便于渲染层还原（不注入模型返回的 HTML）；
+ * - 脚本、样式、隐藏内容、表单输入和插件自身节点被跳过。
+ */
+export function buildInlinePayload(root: Element): InlinePayload | null {
+  if (shouldSkipElement(root) || isCodeElement(root)) return null;
+
+  const formats: InlineFormat[] = [];
+  const parts: string[] = [];
+  let opaqueSlot = 0;
+  let wrapSlot = 0;
+
+  const walkChildren = (element: Element): void => {
+    for (const child of Array.from(element.childNodes)) walk(child);
+  };
+
+  const pushOpaque = (text: string): void => {
+    opaqueSlot += 1;
+    const marker = `⟦o${opaqueSlot}⟧`;
+    formats.push({ marker, kind: 'opaque', tag: 'number', text });
+    parts.push(marker);
+  };
+
+  const pushText = (value: string): void => {
+    let cursor = 0;
+    for (const match of matchProtected(value)) {
+      const index = match.index;
+      if (index > cursor) parts.push(value.slice(cursor, index));
+      pushOpaque(match.text);
+      cursor = index + match.text.length;
+    }
+    if (cursor < value.length) parts.push(value.slice(cursor));
+  };
+
+  const walk = (node: Node): void => {
+    if (node.nodeType === node.TEXT_NODE) {
+      pushText(node.textContent ?? '');
+      return;
+    }
+    if (node.nodeType !== node.ELEMENT_NODE) return;
+
+    const element = node as Element;
+    if (shouldSkipElement(element)) return;
+
+    if (element.tagName === 'BR') {
+      parts.push(' ');
+      return;
+    }
+
+    if (isCodeElement(element)) {
+      const code = normalizeText(element.textContent ?? '');
+      if (code) {
+        opaqueSlot += 1;
+        const marker = `⟦o${opaqueSlot}⟧`;
+        formats.push({ marker, kind: 'opaque', tag: 'code', text: code });
+        parts.push(` ${marker} `);
+      }
+      return;
+    }
+
+    const wrapTag = WRAP_TAGS[element.tagName.toUpperCase()];
+    if (wrapTag) {
+      wrapSlot += 1;
+      const key = `w${wrapSlot}`;
+      const href = wrapTag === 'a' ? element.getAttribute('href') : null;
+      const format: InlineFormat = { marker: `⟦${key}⟧`, kind: 'wrap', tag: wrapTag };
+      if (href) {
+        format.href = href;
+        const target = element.getAttribute('target');
+        const rel = element.getAttribute('rel');
+        if (target) format.target = target;
+        if (rel) format.rel = rel;
+      }
+      formats.push(format);
+      parts.push(`⟦${key}⟧`);
+      walkChildren(element);
+      parts.push(`⟦/${key}⟧`);
+      return;
+    }
+
+    walkChildren(element);
+  };
+
+  walkChildren(root);
+
+  const text = normalizeMarkerSpacing(parts.join(''));
+  if (!text) return null;
+  if (!/[A-Za-z]/.test(stripInlineMarkers(text))) return null;
+
+  return { text, formats };
+}
+
+/** 按出现顺序合并数字与日期两类保护片段，重叠时保留更长的那个。 */
+function matchProtected(value: string): { index: number; text: string }[] {
+  const found: { index: number; text: string }[] = [];
+  for (const pattern of [DATE_PATTERN, NUMBER_PATTERN]) {
+    for (const match of value.matchAll(pattern)) {
+      const index = match.index ?? 0;
+      if (found.some((item) => index < item.index + item.text.length && item.index < index + match[0].length)) {
+        continue;
+      }
+      found.push({ index, text: match[0] });
+    }
+  }
+  return found.sort((left, right) => left.index - right.index);
+}
+
+/** 折叠空白，并去掉格式标记内侧的空格，避免译文里出现首尾空白。 */
+function normalizeMarkerSpacing(text: string): string {
+  return normalizeText(text)
+    .replace(/⟦(w\d+)⟧\s+/g, '⟦$1⟧')
+    .replace(/\s+⟦\/(w\d+)⟧/g, '⟦/$1⟧');
+}
+
+function plainText(text: string): string {
+  return normalizeText(stripInlineMarkers(text));
+}
+
+/**
+ * 把占位标记还原成它们代表的原文（数字、行内代码）。
+ *
+ * 指纹必须基于还原后的文本：数字被标记保护后，如果直接用请求文本算指纹，
+ * 页面上变化了的计数或版本号就不会被当作内容变化。
+ */
+export function expandOpaqueMarkers(text: string, formats: readonly InlineFormat[]): string {
+  if (formats.length === 0) return text;
+  const opaque = new Map(
+    formats.filter((format) => format.kind === 'opaque').map((format) => [format.marker, format.text]),
+  );
+  return text.replace(/⟦o\d+⟧/g, (marker) => opaque.get(marker) ?? marker);
+}
+
+/**
+ * 供悬停查看原文使用：去掉格式标记，并把数字等占位内容还原成原文。
+ */
+export function formatPlainText(text: string, formats: readonly InlineFormat[] = []): string {
+  if (formats.length === 0) return plainText(text);
+
+  const opaque = new Map(
+    formats.filter((format) => format.kind === 'opaque').map((format) => [format.marker, format.text]),
+  );
+  return plainText(text.replace(/⟦o\d+⟧/g, (marker) => opaque.get(marker) ?? ''));
+}
+
+interface TextToken {
+  type: 'text';
+  value: string;
+}
+
+interface OpaqueToken {
+  type: 'opaque';
+  format: Extract<InlineFormat, { kind: 'opaque' }>;
+}
+
+interface OpenToken {
+  type: 'open';
+  marker: string;
+  format: Extract<InlineFormat, { kind: 'wrap' }>;
+}
+
+interface CloseToken {
+  type: 'close';
+  marker: string;
+}
+
+type RenderToken = TextToken | OpaqueToken | OpenToken | CloseToken;
+
+type ParseResult = { ok: true; tokens: RenderToken[] } | { ok: false };
+
+/**
+ * 严格解析模型返回的标记：
+ * 未知标记、不配对或错序的包裹标记都会导致解析失败，
+ * 此时退回纯文本渲染，绝不猜测性结构。
+ */
+function parseRenderedText(text: string, formats: readonly InlineFormat[]): ParseResult {
+  const byMarker = new Map(formats.map((format) => [format.marker, format]));
+  const tokens: RenderToken[] = [];
+  const openStack: string[] = [];
+  let cursor = 0;
+
+  const pattern = new RegExp(INLINE_MARKER_PATTERN.source, 'g');
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const [raw, slash, kind, digits] = match;
+    if (match.index > cursor) {
+      tokens.push({ type: 'text', value: text.slice(cursor, match.index) });
+    }
+    cursor = match.index + raw.length;
+
+    const marker = `⟦${slash}${kind}${digits}⟧`;
+
+    if (slash) {
+      const openMarker = `⟦${kind}${digits}⟧`;
+      const format = byMarker.get(openMarker);
+      if (!format || format.kind !== 'wrap') return { ok: false };
+      if (openStack.pop() !== openMarker) return { ok: false };
+      tokens.push({ type: 'close', marker: openMarker });
+      continue;
+    }
+
+    const format = byMarker.get(marker);
+    if (!format) return { ok: false };
+
+    if (format.kind === 'opaque') {
+      tokens.push({ type: 'opaque', format });
+      continue;
+    }
+
+    openStack.push(marker);
+    tokens.push({ type: 'open', marker, format });
+  }
+
+  if (openStack.length > 0) return { ok: false };
+  if (cursor < text.length) tokens.push({ type: 'text', value: text.slice(cursor) });
+
+  return { ok: true, tokens: normalizeTokens(tokens) };
+}
+
+function normalizeTokens(tokens: RenderToken[]): RenderToken[] {
+  const normalized: RenderToken[] = [];
+
+  for (const token of tokens) {
+    if (token.type !== 'text') {
+      normalized.push(token);
+      continue;
+    }
+    const value = token.value.replace(/\s+/g, ' ');
+    if (!value) continue;
+    const previous = normalized[normalized.length - 1];
+    if (previous?.type === 'text') {
+      normalized[normalized.length - 1] = { type: 'text', value: previous.value + value };
+    } else {
+      normalized.push({ type: 'text', value });
+    }
+  }
+
+  const first = normalized[0];
+  if (first?.type === 'text') normalized[0] = { type: 'text', value: first.value.replace(/^\s+/, '') };
+  const last = normalized[normalized.length - 1];
+  if (last?.type === 'text') {
+    normalized[normalized.length - 1] = { type: 'text', value: last.value.replace(/\s+$/, '') };
+  }
+
+  return normalized.filter((token) => token.type !== 'text' || token.value.length > 0);
+}
+
+/**
+ * 把译文文本与格式定义还原为安全的 DOM 节点。
+ * 只创建白名单元素（a/em/strong/code），文本一律走 textContent，
+ * 因此模型输出中的 HTML、脚本或事件处理器不会变成可执行内容。
+ */
+export function createInlineNodes(
+  doc: Document,
+  translatedText: string,
+  formats: readonly InlineFormat[],
+): Node[] {
+  const parsed = parseRenderedText(translatedText, formats);
+  if (!parsed.ok) {
+    const fallback = plainText(translatedText);
+    return fallback ? [doc.createTextNode(fallback)] : [];
+  }
+
+  const nodes: Node[] = [];
+  const stack: Element[] = [];
+
+  const append = (node: Node): void => {
+    const parent = stack[stack.length - 1];
+    if (parent) parent.appendChild(node);
+    else nodes.push(node);
+  };
+
+  for (const token of parsed.tokens) {
+    if (token.type === 'text') {
+      append(doc.createTextNode(token.value));
+    } else if (token.type === 'opaque') {
+      if (token.format.tag === 'number') {
+        append(doc.createTextNode(token.format.text));
+        continue;
+      }
+      const code = doc.createElement('code');
+      code.setAttribute(OWN_NODE_ATTRIBUTE, 'inline');
+      code.textContent = token.format.text;
+      append(code);
+    } else if (token.type === 'open') {
+      const element = doc.createElement(token.format.tag);
+      element.setAttribute(OWN_NODE_ATTRIBUTE, 'inline');
+      if (token.format.href) element.setAttribute('href', token.format.href);
+      if (token.format.target) element.setAttribute('target', token.format.target);
+      element.setAttribute('rel', token.format.rel ?? 'noopener noreferrer');
+      append(element);
+      stack.push(element);
+    } else {
+      stack.pop();
+    }
+  }
+
+  return nodes;
+}
