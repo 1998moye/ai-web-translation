@@ -396,7 +396,7 @@ describe('PageTranslationSession 译文排版', () => {
 
     const block = document.querySelector('[data-aiwt="body-translation"]') as HTMLElement;
     const style = block.getAttribute('style') ?? '';
-    expect(style).toContain('font-size: 0.9em');
+    expect(style).toContain('font-size: clamp(0.82rem, 0.9em, 1.3rem)');
     expect(style).not.toContain('32px');
     expect(style).toContain('font-weight: 700');
   });
@@ -444,7 +444,7 @@ describe('PageTranslationSession 译文排版', () => {
 
     const style = document.querySelector('td [data-aiwt="body-translation"]')?.getAttribute('style') ?? '';
     expect(style).toContain('color: rgb(87, 96, 106)');
-    expect(style).toContain('font-size: 0.82em');
+    expect(style).toContain('font-size: clamp(0.75rem, 0.82em, 1rem)');
   });
 
   it('表格里的译文比正文更小，避免撑开行高与列宽', async () => {
@@ -461,8 +461,8 @@ describe('PageTranslationSession 译文排版', () => {
     const paragraphBlock = document.querySelector('p + [data-aiwt="body-translation"]') as HTMLElement;
     const cellBlock = document.querySelector('td [data-aiwt="body-translation"]') as HTMLElement;
 
-    expect(cellBlock.getAttribute('style')).toContain('font-size: 0.82em');
-    expect(paragraphBlock.getAttribute('style')).toContain('font-size: 0.9em');
+    expect(cellBlock.getAttribute('style')).toContain('font-size: clamp(0.75rem, 0.82em, 1rem)');
+    expect(paragraphBlock.getAttribute('style')).toContain('font-size: clamp(0.82rem, 0.9em, 1.3rem)');
     // flex 容器里不占满整行，中文会被挤成逐字竖排。
     expect(paragraphBlock.getAttribute('style')).toContain('flex-basis: 100%');
   });

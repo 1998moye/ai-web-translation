@@ -5,6 +5,8 @@ import {
   OWN_NODE_ATTRIBUTE,
   type InlineFormat,
 } from '../inline-format/inline-format';
+import { StyleCache } from '../dom/style-cache';
+import { isBodyTargetLayoutSafe } from '../content-scan/layout-safety';
 import type { TranslationUnitId } from '@/shared/ids';
 
 export interface RenderedTranslation {
@@ -21,12 +23,15 @@ export interface RenderedTranslation {
  */
 const BODY_BLOCK_STYLE = [
   'display: block',
+  'box-sizing: border-box',
+  'max-width: 100%',
   'margin: 0.35em 0 0.15em',
   'padding: 0',
   'border: 0',
   'background: transparent',
   'white-space: normal',
-  'font-size: 0.9em',
+  'overflow-wrap: anywhere',
+  'font-size: clamp(0.82rem, 0.9em, 1.3rem)',
   'line-height: 1.5',
   'width: 100%',
   'flex-basis: 100%',
@@ -35,7 +40,7 @@ const BODY_BLOCK_STYLE = [
 /** 表格里再插入一份同字号译文会把行高撑开、列宽挤窄，因此更小并收紧行距。 */
 const TABLE_BLOCK_STYLE = [
   BODY_BLOCK_STYLE,
-  'font-size: 0.82em',
+  'font-size: clamp(0.75rem, 0.82em, 1rem)',
   'line-height: 1.45',
   'margin: 0.2em 0 0',
 ].join(';');
@@ -108,7 +113,7 @@ function isFlexOrGrid(doc: Document, element: Element): boolean {
  * 提交信息这类单元格把颜色加在内层 span 上，而翻译单元是外层的单元格；
  * 只看外层就会拿到默认的黑色，译文与原文颜色对不上。
  */
-function textHostOf(source: Element): Element {
+function textHostOf(source: Element, cache: StyleCache): Element {
   let host = source;
   let most = -1;
 
@@ -123,7 +128,7 @@ function textHostOf(source: Element): Element {
       host = element;
     }
     for (const child of Array.from(element.children)) {
-      if (isSkippedElement(child)) continue;
+      if (isSkippedElement(child, cache)) continue;
       walk(child);
     }
   };
@@ -136,16 +141,14 @@ function textHostOf(source: Element): Element {
   return host;
 }
 
-function styleFor(doc: Document, source: Element, inTable: boolean): string {
+function styleFor(source: Element, inTable: boolean, cache: StyleCache): string {
   const base = inTable ? TABLE_BLOCK_STYLE : BODY_BLOCK_STYLE;
 
-  const view = doc.defaultView;
-  if (!view) return base;
-
-  const host = textHostOf(source);
+  const host = textHostOf(source, cache);
   let style = base;
   try {
-    const computed = view.getComputedStyle(host);
+    const computed = cache.get(host);
+    if (!computed) return base;
     for (const property of INHERITED_TYPOGRAPHY) {
       const value = computed.getPropertyValue(property);
       if (value) style += `;${property}: ${value}`;
@@ -167,12 +170,15 @@ export function renderBodyTranslation(
   const nodes = createInlineNodes(doc, translatedText, formats);
   if (nodes.length === 0) return null;
 
+  const cache = new StyleCache(doc);
+  if (!isBodyTargetLayoutSafe(source, cache)) return null;
+
   const inTable = source.closest(TABLE_CELL_SELECTOR) !== null;
   const block = doc.createElement('div');
   block.setAttribute(OWN_NODE_ATTRIBUTE, 'body-translation');
   block.setAttribute('data-aiwt-unit', unitId);
   block.setAttribute('lang', 'zh-CN');
-  block.setAttribute('style', styleFor(doc, source, inTable));
+  block.setAttribute('style', styleFor(source, inTable, cache));
   block.append(...nodes);
 
   if (!placeBlock(doc, source, block)) return null;
@@ -206,7 +212,8 @@ export function renderInterfaceTranslation(
   const originalTitle = element.getAttribute('title');
   const title = formatPlainText(originalText, formats);
 
-  const textNodes = collectTextNodes(element);
+  const cache = new StyleCache(doc);
+  const textNodes = collectTextNodes(element, cache);
   const plainText = nodes.every((node) => node.nodeType === Node.TEXT_NODE) ? nodes : null;
   if (plainText && textNodes.length > 0) {
     const value = plainText.map((node) => node.textContent ?? '').join('');
@@ -280,6 +287,8 @@ export function renderFailureMarker(
   unitId: TranslationUnitId,
   onRetry: () => void = () => {},
 ): RenderedTranslation | null {
+  if (!isBodyTargetLayoutSafe(source, new StyleCache(doc))) return null;
+
   const block = doc.createElement('div');
   block.setAttribute(OWN_NODE_ATTRIBUTE, 'failure');
   block.setAttribute('data-aiwt-unit', unitId);
@@ -328,7 +337,7 @@ export function isRendering(element: Element, nodes: readonly Node[]): boolean {
 }
 
 /** 收集元素自身文本节点，跳过图标、输入框等不属于译文的子树。 */
-function collectTextNodes(element: Element): Text[] {
+function collectTextNodes(element: Element, cache: StyleCache): Text[] {
   const textNodes: Text[] = [];
 
   const walk = (node: Node): void => {
@@ -338,7 +347,7 @@ function collectTextNodes(element: Element): Text[] {
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const child = node as Element;
-    if (isSkippedElement(child)) return;
+    if (isSkippedElement(child, cache)) return;
     for (const grandChild of Array.from(child.childNodes)) walk(grandChild);
   };
 

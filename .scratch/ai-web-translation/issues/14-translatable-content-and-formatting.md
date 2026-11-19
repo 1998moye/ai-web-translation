@@ -43,3 +43,13 @@
 - 修复语言判断未剥离闭合行内标记的问题：`classifyText` 改用 `stripInlineMarkers`，只含一个链接的标题不会因为残留的 `⟦/w1⟧` 被多算一个单词、误判为非英文而不翻译。Stack Overflow 风格的问题标题现在保留英文并在下方显示译文。
 - 紧凑控制行阈值从“2 个以上控件”放宽到“1 个以上控件”，只有单个用户链接的仓库元数据行也不会再插入整块译文。
 - 验收：新增 `tests/e2e/fixtures/stack.html` 与 `tests/e2e/content-recognition.spec.ts`；单测 315、fake e2e 30 passed / 1 skipped、生产 e2e 27 passed、`npm run compile` 通过。
+
+### 2026-11-19 修复整页翻译卡顿与布局错位
+
+- 扫描性能：新增 `src/modules/dom/style-cache.ts`，单次扫描内按元素缓存 `getComputedStyle` 与隐藏状态；可见性检查改为沿祖先递归缓存，避免对每个后代重复逐层读取样式。正文候选先做结构/布局预判，再构建整段 payload。
+- 动态内容：MutationObserver 不再每次整页重扫，只收集新增/变化节点所在的最近翻译单元与子树；重扫放到 `requestIdleCallback`，滚动期间继续推迟；超过 40 个改动子树或整页变动时回退整页扫描。
+- 渲染性能：翻译结果先进入待渲染队列，按 `BODY_RENDER_BATCH=8` / `INTERFACE_RENDER_BATCH=32` 分帧写入 DOM，滚动时延迟写入；新增 `unchanged` 记录，原文未变时重渲染不会误插重复译文。
+- 布局安全：新增 `src/modules/content-scan/layout-safety.ts`，跳过 recharts/highcharts 等图表、flex/grid 容器与数据行、绝对定位浮层、固定高度且 `overflow:hidden` 的卡片；表格译文只放在单元格内部。
+- 数据行：块级 `div` 中数字多、词少且没有句子结尾的内容不再当正文，避免排行榜/价格表整行被拼成一条译文。
+- 译文样式：字号改为 `clamp()` 限制，增加 `max-width`、`overflow-wrap:anywhere`、`box-sizing:border-box`，标题或大字号单元格不再撑爆版面。
+- 验收：新增 `tests/unit/style-cache.test.ts`、`tests/e2e/fixtures/layout.html`、`tests/e2e/layout.spec.ts`；单测 322 passed、fake e2e 31 passed / 1 skipped、生产 e2e 28 passed。3000 段压力页面实测 3081 个译文块约 6.2 秒完成，最长主线程任务 122ms，滚动帧 p95 18ms（本机 Chromium 无头环境，仅作回归参考）。

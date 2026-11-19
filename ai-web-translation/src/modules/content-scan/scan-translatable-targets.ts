@@ -1,4 +1,5 @@
 import { fingerprintText, normalizeText } from '@/shared/text';
+import { StyleCache } from '../dom/style-cache';
 import type { TranslationUnitKind } from '../translation-contract/types';
 import {
   buildInlinePayload,
@@ -10,6 +11,7 @@ import {
   type InlineFormat,
   type InlinePayload,
 } from '../inline-format/inline-format';
+import { isBodyTargetLayoutSafe, isChartRegion } from './layout-safety';
 
 export interface TranslatableTarget {
   element: HTMLElement;
@@ -51,6 +53,12 @@ const BLOCKISH_TAGS = new Set([
   'LI', 'MAIN', 'NAV', 'OL', 'P', 'PRE', 'SECTION', 'TABLE', 'TBODY', 'TD', 'TFOOT', 'TH', 'THEAD', 'TR', 'UL',
 ]);
 
+/** 行内包装元素内部几乎不会出现块级布局，不必递归整棵子树。 */
+const INLINE_WRAPPER_TAGS = new Set([
+  'A', 'ABBR', 'B', 'BDI', 'BDO', 'CITE', 'CODE', 'EM', 'I', 'LABEL', 'MARK', 'S', 'SMALL', 'SPAN', 'STRONG',
+  'SUB', 'SUP', 'TIME', 'U', 'WBR',
+]);
+
 const EDITABLE_SELECTOR =
   '[contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"], textarea, select, option';
 
@@ -75,20 +83,26 @@ function isInsideSkippedContainer(element: Element): boolean {
   return element.closest('script, style, noscript, template, svg, canvas, iframe, object, embed') !== null;
 }
 
-function hasBlockishChild(element: Element): boolean {
+function hasBlockishChild(element: Element, visibility: StyleCache): boolean {
   for (const child of Array.from(element.children)) {
-    if (BLOCKISH_TAGS.has(child.tagName.toUpperCase()) && !isHiddenElement(child)) return true;
-    if (hasBlockishChild(child)) return true;
+    if (BLOCKISH_TAGS.has(child.tagName.toUpperCase()) && !isHiddenElement(child, visibility)) return true;
+    if (INLINE_WRAPPER_TAGS.has(child.tagName.toUpperCase())) continue;
+    if (hasBlockishChild(child, visibility)) return true;
   }
   return false;
 }
 
-function isEligibleElement(element: HTMLElement, options: { allowInNavigation: boolean }): boolean {
+function isEligibleElement(
+  element: HTMLElement,
+  options: { allowInNavigation: boolean },
+  visibility: StyleCache,
+): boolean {
   if (isOwnNode(element)) return false;
   if (isInsideCode(element)) return false;
   if (isInsideSkippedContainer(element)) return false;
   if (isInsideEditableRegion(element)) return false;
-  if (isHiddenElement(element)) return false;
+  if (isHiddenElement(element, visibility)) return false;
+  if (isChartRegion(element)) return false;
   if (!options.allowInNavigation && element.closest(BODY_EXCLUDED_ANCESTOR) !== null) return false;
   return true;
 }
@@ -100,6 +114,13 @@ function isEligibleElement(element: HTMLElement, options: { allowInNavigation: b
  * 这类容器没有自己的文字，应该交给界面文本就地翻译，而不是当正文重复翻译一遍。
  */
 function proseTextOutsideControls(element: Element): string {
+  let directText = '';
+  for (const node of Array.from(element.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE) directText += node.nodeValue ?? '';
+  }
+  // 大多数段落有自己的直接文本，不必为了判断“是否只有控件”再遍历整棵子树。
+  if (normalizeText(directText)) return normalizeText(directText);
+
   let text = '';
 
   const walk = (node: Node): void => {
@@ -119,9 +140,9 @@ function proseTextOutsideControls(element: Element): string {
   return normalizeText(text);
 }
 
-function eligiblePayload(element: HTMLElement, allowInNavigation: boolean): InlinePayload | null {
-  if (!isEligibleElement(element, { allowInNavigation })) return null;
-  return buildInlinePayload(element);
+function eligiblePayload(element: HTMLElement, allowInNavigation: boolean, visibility: StyleCache): InlinePayload | null {
+  if (!isEligibleElement(element, { allowInNavigation }, visibility)) return null;
+  return buildInlinePayload(element, visibility);
 }
 
 /**
@@ -130,20 +151,57 @@ function eligiblePayload(element: HTMLElement, allowInNavigation: boolean): Inli
  */
 function isInlineControlRow(element: HTMLElement): boolean {
   if (element.tagName.toUpperCase() !== 'DIV') return false;
-  if (element.querySelectorAll(INTERFACE_SELECTOR).length < 1) return false;
 
   let directText = '';
   for (const node of Array.from(element.childNodes)) {
     if (node.nodeType === Node.TEXT_NODE) directText += node.nodeValue ?? '';
   }
-  return normalizeText(directText).length < 30;
+  if (normalizeText(directText).length >= 30) return false;
+  if (element.querySelector(INTERFACE_SELECTOR) === null) return false;
+  return true;
 }
 
-function collectBodyCandidates(root: Element): Candidate[] {
+/**
+ * 一行里塞了三个以上数字、几乎没有句子结构的容器通常是排行榜/价格表的一行。
+ * 它不适合在下面再插一整行译文，否则会把表格或网格布局挤乱。
+ */
+function looksLikeDataRow(element: HTMLElement, text = normalizeText(element.textContent ?? '')): boolean {
+  if (element.tagName.toUpperCase() !== 'DIV') return false;
+
+  if (text.length > 240) return false;
+  const digits = text.match(/\d/g)?.length ?? 0;
+  const words = text.match(/[A-Za-z][A-Za-z'’-]*/g)?.length ?? 0;
+  // 小数点不是句号："$11.55" 不应被当成句子结尾。
+  const sentenceEnd = /[!?。！？]|\.(?:\s|$)/.test(text);
+  return digits >= 3 && words > 0 && words <= 16 && !sentenceEnd;
+}
+
+function collectBodyCandidates(
+  roots: readonly Element[],
+  visibility: StyleCache,
+  knownBodyElements: ReadonlySet<Element>,
+): Candidate[] {
   const candidates: Candidate[] = [];
+  const seen = new Set<Element>();
 
   const consider = (element: HTMLElement, requireInlineOnly: boolean): void => {
-    const payload = eligiblePayload(element, false);
+    if (seen.has(element)) return;
+    seen.add(element);
+
+    if (!isEligibleElement(element, { allowInNavigation: false }, visibility)) return;
+    // 先做便宜的布局判断，避免为图表、flex 行和固定高度卡片构建整段 payload。
+    if (!isBodyTargetLayoutSafe(element, visibility)) return;
+
+    if (requireInlineOnly) {
+      // 先看结构：整页布局包装 div 会在第一层就命中块级子元素，不必读取整棵子树的文本。
+      if (hasBlockishChild(element, visibility)) return;
+      const text = normalizeText(element.textContent ?? '');
+      if (text.length < DIV_MIN_TEXT_LENGTH) return;
+      if (looksLikeDataRow(element, text)) return;
+      if (isInlineControlRow(element)) return;
+    }
+
+    const payload = buildInlinePayload(element, visibility);
     if (!payload) return;
     if (!proseTextOutsideControls(element)) {
       // 内容标题常常只有一个链接作为全部文字（如 Stack Overflow 问题标题）；
@@ -154,22 +212,27 @@ function collectBodyCandidates(root: Element): Candidate[] {
         element.closest('header, [role="banner"]') === null;
       if (!isContentHeading) return;
     }
-    if (requireInlineOnly) {
-      if (hasBlockishChild(element)) return;
-      if (isInlineControlRow(element)) return;
-      if (normalizeText(element.textContent ?? '').length < DIV_MIN_TEXT_LENGTH) return;
-    }
+
     candidates.push({ element, payload });
   };
 
-  for (const element of Array.from(root.querySelectorAll<HTMLElement>(BODY_SELECTOR))) {
-    consider(element, false);
-  }
-  for (const element of Array.from(root.querySelectorAll<HTMLElement>('div'))) {
-    consider(element, true);
+  for (const root of roots) {
+    if (root instanceof HTMLElement && root.matches(BODY_SELECTOR)) consider(root, false);
+    if (root instanceof HTMLElement && root.tagName === 'DIV') consider(root, true);
+
+    for (const element of Array.from(root.querySelectorAll<HTMLElement>(BODY_SELECTOR))) {
+      consider(element, false);
+    }
+    for (const element of Array.from(root.querySelectorAll<HTMLElement>('div'))) {
+      consider(element, true);
+    }
   }
 
-  return keepInnermost(candidates);
+  // 已知正文单元是一个边界：只允许它本身参与重扫，不允许在它内部再建立嵌套单元。
+  const bounded = candidates.filter(
+    (candidate) => knownBodyElements.has(candidate.element) || !hasBodyAncestor(candidate.element, knownBodyElements),
+  );
+  return keepInnermost(bounded);
 }
 
 /** 只保留最内层正文单元：`<li><p>…</p></li>` 只翻译 p，避免同一段文字重复提交。 */
@@ -198,22 +261,38 @@ function hasBodyAncestor(element: Element, bodyElements: ReadonlySet<Element>): 
   return false;
 }
 
-function collectInterfaceCandidates(root: Element, bodyElements: ReadonlySet<Element>): Candidate[] {
+function collectInterfaceCandidates(
+  roots: readonly Element[],
+  bodyElements: ReadonlySet<Element>,
+  visibility: StyleCache,
+): Candidate[] {
   const candidates: Candidate[] = [];
+  const seen = new Set<Element>();
 
-  for (const element of Array.from(root.querySelectorAll<HTMLElement>(INTERFACE_SELECTOR))) {
-    if (bodyElements.has(element)) continue;
-    if (hasBodyAncestor(element, bodyElements)) continue;
-    if (element.parentElement?.closest(INTERFACE_SELECTOR)) continue;
-    if (hasBlockishChild(element)) continue;
+  const consider = (element: HTMLElement): void => {
+    if (seen.has(element)) return;
+    seen.add(element);
 
-    const payload = eligiblePayload(element, true);
-    if (!payload) continue;
+    if (!element.matches(INTERFACE_SELECTOR)) return;
+    if (bodyElements.has(element)) return;
+    if (hasBodyAncestor(element, bodyElements)) return;
+    if (element.parentElement?.closest(INTERFACE_SELECTOR)) return;
+    if (hasBlockishChild(element, visibility)) return;
+
+    const payload = eligiblePayload(element, true, visibility);
+    if (!payload) return;
 
     const words = payload.text.match(/[A-Za-z][A-Za-z'’-]*/g)?.length ?? 0;
-    if (words === 0 || words > INTERFACE_MAX_WORDS) continue;
+    if (words === 0 || words > INTERFACE_MAX_WORDS) return;
 
     candidates.push({ element, payload });
+  };
+
+  for (const root of roots) {
+    if (root instanceof HTMLElement) consider(root);
+    for (const element of Array.from(root.querySelectorAll<HTMLElement>(INTERFACE_SELECTOR))) {
+      consider(element);
+    }
   }
 
   return candidates;
@@ -224,13 +303,27 @@ function collectInterfaceCandidates(root: Element, bodyElements: ReadonlySet<Ele
  * 正文（段落、列表、标题等）与界面文本（链接、按钮、菜单项、标签）。
  * 语言判断不在这里进行，由页面翻译会话按单元决定是否提交。
  */
-export function scanTranslatableTargets(doc: Document = document): TranslatableTarget[] {
-  const root = doc.body;
-  if (!root) return [];
+export interface ScanTranslatableOptions {
+  /** 只扫描这些子树；用于动态内容增量重扫。 */
+  roots?: readonly Element[];
+  /** 会话已建立的正文单元，避免重扫时在它们内部创建嵌套单元。 */
+  knownBodyElements?: ReadonlySet<Element>;
+}
 
-  const body = collectBodyCandidates(root);
+export function scanTranslatableTargets(
+  doc: Document = document,
+  options: ScanTranslatableOptions = {},
+): TranslatableTarget[] {
+  const bodyRoot = doc.body;
+  if (!bodyRoot) return [];
+
+  const visibility = new StyleCache(doc);
+  const roots = options.roots && options.roots.length > 0 ? options.roots : [bodyRoot];
+  const knownBodyElements = options.knownBodyElements ?? new Set<Element>();
+  const body = collectBodyCandidates(roots, visibility, knownBodyElements);
   const bodyElements = new Set(body.map((candidate) => candidate.element));
-  const interfaceCandidates = collectInterfaceCandidates(root, bodyElements);
+  const allBodyElements = new Set([...knownBodyElements, ...bodyElements]);
+  const interfaceCandidates = collectInterfaceCandidates(roots, allBodyElements, visibility);
 
   return [...body, ...interfaceCandidates].map(({ element, payload }) => ({
     element,

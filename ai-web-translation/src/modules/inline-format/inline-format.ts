@@ -1,5 +1,6 @@
 import { INLINE_MARKER_PATTERN, stripInlineMarkers } from '@/shared/inline-markers';
 import { normalizeText } from '@/shared/text';
+import { StyleCache } from '../dom/style-cache';
 
 export type InlineWrapTag = 'a' | 'em' | 'strong';
 
@@ -54,84 +55,14 @@ export function isCodeElement(element: Element): boolean {
   return CODE_TAGS.has(element.tagName.toUpperCase());
 }
 
-export function isHiddenElement(element: Element): boolean {
-  if (element.hasAttribute('hidden')) return true;
-  if (element.getAttribute('aria-hidden') === 'true') return true;
-  const inlineStyle = (element as HTMLElement).style;
-  if (inlineStyle) {
-    if (inlineStyle.display === 'none') return true;
-    if (inlineStyle.visibility === 'hidden' || inlineStyle.visibility === 'collapse') return true;
-    if (inlineStyle.opacity === '0') return true;
-  }
-  const view = element.ownerDocument?.defaultView;
-  if (!view) return false;
-
-  // 隐藏容器的后代：getComputedStyle 只看元素自身，display 不会从祖先继承。
-  // Chrome 提供 checkVisibility，可以直接判断元素是否参与渲染；其他环境回退到逐层检查。
-  const checkVisibility = (element as Element & {
-    checkVisibility?: (options?: { checkVisibilityCSS?: boolean }) => boolean;
-  }).checkVisibility;
-  if (typeof checkVisibility === 'function') {
-    try {
-      // checkVisibility 只看 display/visibility，不会识别 sr-only 的 1px 裁剪；
-      // 返回 false 时继续走下面的视觉隐藏检查。
-      if (!checkVisibility.call(element, { checkVisibilityCSS: true })) return true;
-    } catch {
-      // 回退到逐层检查。
-    }
-  }
-
-  for (let ancestor: Element | null = element; ancestor; ancestor = ancestor.parentElement) {
-    if (ancestor.hasAttribute('hidden')) return true;
-    try {
-      const computed = view.getComputedStyle(ancestor);
-      if (computed.display === 'none' || computed.visibility === 'hidden' || computed.visibility === 'collapse') {
-        return true;
-      }
-      if (isVisuallyHidden(computed)) return true;
-    } catch {
-      return false;
-    }
-  }
-  return false;
+export function isHiddenElement(element: Element, cache?: StyleCache): boolean {
+  return (cache ?? new StyleCache(element.ownerDocument ?? document)).isHidden(element);
 }
 
-/**
- * 无障碍用的「仅屏幕阅读器可见」文本：绝对定位并裁剪到 1px 左右。
- *
- * 例如徽章里的 reputation score。这类文字用户看不见，却会被算进所在容器的
- * 文字里，让一个纯数字徽章变成翻译单元，于是在旁边多出一份译文。
- */
-function isVisuallyHidden(computed: CSSStyleDeclaration): boolean {
-  const opacity = Number.parseFloat(computed.getPropertyValue('opacity'));
-  if (Number.isFinite(opacity) && opacity === 0) return true;
-
-  const fontSize = Number.parseFloat(computed.getPropertyValue('font-size'));
-  if (Number.isFinite(fontSize) && fontSize === 0) return true;
-
-  const textIndent = Number.parseFloat(computed.getPropertyValue('text-indent'));
-  if (Number.isFinite(textIndent) && textIndent <= -999) return true;
-
-  const clipPath = computed.getPropertyValue('clip-path');
-  if (clipPath && clipPath.includes('inset(50%)')) return true;
-
-  const position = computed.getPropertyValue('position');
-  const width = Number.parseFloat(computed.getPropertyValue('width'));
-  const height = Number.parseFloat(computed.getPropertyValue('height'));
-  const tiny = Number.isFinite(width) && Number.isFinite(height) && width <= 1 && height <= 1;
-  const overflow = computed.getPropertyValue('overflow');
-
-  // sr-only 文本有时用绝对定位 + 1px 尺寸，有时用 overflow:hidden + 1px 尺寸。
-  if (tiny && (position === 'absolute' || position === 'fixed' || overflow === 'hidden')) return true;
-
-  const clip = computed.getPropertyValue('clip');
-  return Boolean(clip && clip !== 'auto');
-}
-
-function shouldSkipElement(element: Element): boolean {
+function shouldSkipElement(element: Element, cache?: StyleCache): boolean {
   if (SKIP_TAGS.has(element.tagName.toUpperCase())) return true;
   if (element.hasAttribute(OWN_NODE_ATTRIBUTE)) return true;
-  if (isHiddenElement(element)) return true;
+  if (isHiddenElement(element, cache)) return true;
   if (element.getAttribute('contenteditable') === '' || element.getAttribute('contenteditable') === 'true') {
     return true;
   }
@@ -139,8 +70,8 @@ function shouldSkipElement(element: Element): boolean {
 }
 
 /** 扫描时整体跳过的元素（图标、输入框、脚本等）；界面文本渲染时需原样保留。 */
-export function isSkippedElement(element: Element): boolean {
-  return shouldSkipElement(element);
+export function isSkippedElement(element: Element, cache?: StyleCache): boolean {
+  return shouldSkipElement(element, cache);
 }
 
 /**
@@ -149,8 +80,8 @@ export function isSkippedElement(element: Element): boolean {
  * - 链接与强调被标记包裹，便于渲染层还原（不注入模型返回的 HTML）；
  * - 脚本、样式、隐藏内容、表单输入和插件自身节点被跳过。
  */
-export function buildInlinePayload(root: Element): InlinePayload | null {
-  if (shouldSkipElement(root) || isCodeElement(root)) return null;
+export function buildInlinePayload(root: Element, cache?: StyleCache): InlinePayload | null {
+  if (shouldSkipElement(root, cache) || isCodeElement(root)) return null;
 
   const formats: InlineFormat[] = [];
   const parts: string[] = [];
@@ -187,7 +118,7 @@ export function buildInlinePayload(root: Element): InlinePayload | null {
     if (node.nodeType !== node.ELEMENT_NODE) return;
 
     const element = node as Element;
-    if (shouldSkipElement(element)) return;
+    if (shouldSkipElement(element, cache)) return;
 
     if (element.tagName === 'BR') {
       parts.push(' ');

@@ -187,4 +187,59 @@ describe('scanTranslatableTargets', () => {
 
     expect(scanTranslatableTargets(document)).toHaveLength(0);
   });
+
+  it('图表容器里的文字不建立正文单元，避免插块覆盖坐标轴', () => {
+    const targets = scan(`
+      <section class="recharts-wrapper">
+        <div class="recharts-label">Claude Opus 5.5 (xHigh)</div>
+        <p>Chart caption that must stay in place.</p>
+      </section>
+      <p>The page paragraph outside the chart.</p>
+    `);
+
+    expect(targets.filter((target) => target.kind === 'body').map((target) => target.text)).toEqual([
+      'The page paragraph outside the chart.',
+    ]);
+  });
+
+  it('flex 数据行不当作正文，避免整行挤成一块译文', () => {
+    const targets = scan(`
+      <div style="display: flex; gap: 8px">
+        <span>1</span><span>Claude Fable 5.2 (xHigh)</span><span>1,824</span><span>$11.55</span><span>$32</span>
+      </div>
+      <p>Normal paragraph text outside the data row.</p>
+    `);
+
+    expect(targets.filter((target) => target.kind === 'body')).toHaveLength(1);
+    expect(targets[0]?.text).toBe('Normal paragraph text outside the data row.');
+  });
+
+  it('普通块级数据行里的模型名、分数和价格不会被当作一段正文', () => {
+    const targets = scan(`
+      <div>1 Claude Fable 5.2 (xHigh) 1,824 $11.55 $32</div>
+      <p>Normal paragraph text outside the data row.</p>
+    `);
+
+    expect(targets.filter((target) => target.kind === 'body').map((target) => target.text)).toEqual([
+      'Normal paragraph text outside the data row.',
+    ]);
+  });
+
+  it('绝对定位或固定高度的卡片不当作正文，避免译文溢出覆盖', () => {
+    const targets = scan(`
+      <div style="position: absolute; right: 0; top: 0">Floating chart label text.</div>
+      <div style="height: 26px; overflow: hidden"><p>Clipped card paragraph text.</p></div>
+      <p>Normal paragraph text outside the cards.</p>
+    `);
+
+    expect(targets.filter((target) => target.kind === 'body')).toHaveLength(1);
+    expect(targets[0]?.text).toBe('Normal paragraph text outside the cards.');
+  });
+
+  it('普通段落放在 grid 布局里仍可翻译', () => {
+    const targets = scan('<div style="display: grid"><p>Grid paragraph text is still prose.</p></div>');
+
+    expect(targets.filter((target) => target.kind === 'body')).toHaveLength(1);
+    expect(targets[0]?.text).toBe('Grid paragraph text is still prose.');
+  });
 });

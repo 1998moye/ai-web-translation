@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Layout safety fixture</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 32px; }
+      .recharts-wrapper { position: relative; width: 360px; height: 180px; }
+      .recharts-label { position: absolute; left: 20px; top: 16px; }
+      .flex-row { display: flex; gap: 8px; align-items: center; }
+      .absolute-card { position: absolute; right: 24px; top: 24px; width: 220px; }
+      .clipped { height: 26px; overflow: hidden; }
+      table { border-collapse: collapse; margin-top: 320px; }
+      td, th { border: 1px solid #ccc; padding: 4px 8px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p id="normal">The quick brown fox jumps over the lazy dog near the river bank.</p>
+
+      <section id="chart" class="recharts-wrapper" aria-label="Model comparison chart">
+        <div class="recharts-label">Claude Opus 5.5 (xHigh)</div>
+        <div class="recharts-value">1,818</div>
+      </section>
+
+      <div id="flex-row" class="flex-row">
+        <span>1</span><span>Claude Fable 5.2 (xHigh)</span><span>1,824</span><span>$11.55</span><span>$32</span>
+      </div>
+
+      <div id="absolute" class="absolute-card">Chart tooltip with a floating label</div>
+
+      <div class="clipped"><p id="clipped">This paragraph is clipped by a fixed-height card.</p></div>
+
+      <table>
+        <thead><tr><th>Model</th><th>Score</th></tr></thead>
+        <tbody><tr><td id="model-cell">Claude model number one</td><td>1,824</td></tr></tbody>
+      </table>
+    </main>
+  </body>
+</html>

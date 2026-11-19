@@ -56,13 +56,24 @@ interface UnitRecord {
   phase: UnitPhase;
   requestId?: RequestId;
   translatedText?: string;
+  /** 模型原样返回时不需要插入译文块，重渲染也必须沿用这个判断。 */
+  unchanged?: boolean;
   error?: SanitizedTranslationError;
   rendered?: RenderedTranslation;
 }
 
+interface PendingRender {
+  record: UnitRecord;
+  translatedText: string;
+  unchanged: boolean;
+}
+
 const DEFAULT_BATCH_UNIT_LIMIT = 20;
 const DEFAULT_BATCH_CHAR_LIMIT = 4000;
-const DEFAULT_MUTATION_DEBOUNCE_MS = 200;
+const DEFAULT_MUTATION_DEBOUNCE_MS = 400;
+/** 每帧最多写多少条译文：避免一次把几百个节点插进页面造成长任务。 */
+const BODY_RENDER_BATCH = 8;
+const INTERFACE_RENDER_BATCH = 32;
 
 /**
  * 页面翻译会话：对调用方隐藏扫描、语言判断、翻译单元状态、动态监听、
@@ -87,6 +98,16 @@ export class PageTranslationSession {
   private mutating = 0;
   private observer: MutationObserver | null = null;
   private reconcileTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconcileIdle: number | null = null;
+  private pendingRoots = new Set<Element>();
+  private touchedElements = new Set<Element>();
+  private fullRescan = false;
+  private lastScrollAt = 0;
+  private readonly onScroll = (): void => {
+    this.lastScrollAt = performance.now();
+  };
+  private pendingRenders = new Map<TranslationUnitId, PendingRender>();
+  private renderTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: PageTranslationSessionOptions) {
     this.source = options;
@@ -133,6 +154,7 @@ export class PageTranslationSession {
     if (this.closed || this.status === 'restored' || this.status === 'cancelled') return;
     this.closed = true;
     this.stopObserving();
+    this.clearPendingRenders();
     void this.engine.cancelSession(this.sessionId).catch(() => undefined);
 
     for (const record of this.registry.values()) {
@@ -150,6 +172,7 @@ export class PageTranslationSession {
     const wasCancelled = this.closed;
     this.closed = true;
     this.stopObserving();
+    this.clearPendingRenders();
     if (!wasCancelled) void this.engine.cancelSession(this.sessionId).catch(() => undefined);
 
     this.runOwnMutation(() => {
@@ -173,8 +196,11 @@ export class PageTranslationSession {
       record.rendered?.restore();
       record.rendered = undefined;
       record.error = undefined;
+      record.translatedText = undefined;
+      record.unchanged = undefined;
       record.phase = 'pending';
     });
+    this.pendingRenders.delete(record.id);
 
     this.dispatch([record]);
     this.emit();
@@ -192,7 +218,10 @@ export class PageTranslationSession {
         record.rendered?.restore();
         record.rendered = undefined;
         record.error = undefined;
+        record.translatedText = undefined;
+        record.unchanged = undefined;
         record.phase = 'pending';
+        this.pendingRenders.delete(record.id);
       }
     });
 
@@ -232,13 +261,23 @@ export class PageTranslationSession {
   dispose(): void {
     this.closed = true;
     this.stopObserving();
+    this.clearPendingRenders();
     this.listeners.clear();
   }
 
-  private reconcileScan(): void {
+  private reconcileScan(roots?: readonly Element[], touched?: ReadonlySet<Element>): void {
     if (this.closed) return;
 
-    const targets = scanTranslatableTargets(this.doc);
+    const fullScan = roots === undefined;
+    const knownBodyElements = new Set(
+      [...this.registry.values()]
+        .filter((record) => record.kind === 'body')
+        .map((record) => record.element),
+    );
+    const targets = scanTranslatableTargets(
+      this.doc,
+      fullScan ? { knownBodyElements } : { roots, knownBodyElements },
+    );
     const seen = new Set<Element>();
     const fresh: UnitRecord[] = [];
 
@@ -266,7 +305,24 @@ export class PageTranslationSession {
 
     for (const [element, record] of [...this.elementRecords]) {
       if (seen.has(element)) continue;
-      // 界面文本被替换成译文后不再是扫描目标（译文里可能没有英文单词）；
+
+      if (!fullScan) {
+        // 增量重扫只处理被改动过的子树与已经从文档移除的单元，
+        // 不能把页面其他位置的译文误判为“消失”。
+        if (!record.element.isConnected) {
+          this.invalidate(record);
+          continue;
+        }
+        if (touched?.has(record.element)) {
+          if (record.kind === 'interface' && record.phase === 'translated' && this.renderingIntact(record)) {
+            continue;
+          }
+          this.invalidate(record);
+        }
+        continue;
+      }
+
+      // 整页重扫：界面文本被替换成译文后不再是扫描目标（译文里可能没有英文单词）；
       // 只要译文仍在，就继续保持，否则每次重扫都会还原再翻译，页面一直闪。
       if (record.kind === 'interface' && record.phase === 'translated' && this.renderingIntact(record)) continue;
       this.invalidate(record);
@@ -298,6 +354,7 @@ export class PageTranslationSession {
     this.runOwnMutation(() => record.rendered?.restore());
     record.rendered = undefined;
     record.requestId = undefined;
+    this.pendingRenders.delete(record.id);
     this.registry.delete(record.id);
     if (this.elementRecords.get(record.element) === record) this.elementRecords.delete(record.element);
   }
@@ -310,7 +367,9 @@ export class PageTranslationSession {
   /** 原文未变但译文被站点移除：直接用已有译文重渲染，不重新请求。 */
   private rerender(record: UnitRecord): boolean {
     if (!record.translatedText) return false;
-    const rendered = this.renderRecord(record, record.translatedText);
+    const rendered = record.unchanged
+      ? renderUnchanged(record.element)
+      : this.renderRecord(record, record.translatedText);
     if (!rendered) return false;
     record.rendered = rendered;
     this.emit();
@@ -378,6 +437,8 @@ export class PageTranslationSession {
     for (const record of batch) {
       if (this.registry.get(record.id) !== record) continue;
       if (record.phase !== 'translating') continue;
+      // 已经拿到译文、等待分帧写入 DOM 的单元不是失败单元。
+      if (record.translatedText !== undefined) continue;
       this.failRecord(record, error);
     }
   }
@@ -391,6 +452,8 @@ export class PageTranslationSession {
     if (!record) return;
     if (record.requestId !== request.requestId) return;
     if (record.phase !== 'translating') return;
+    // 第一份成功结果已经进入待渲染队列：重复事件不能覆盖它。
+    if (record.translatedText !== undefined) return;
 
     if (event.type === 'unit-failed') {
       this.failRecord(record, event.error);
@@ -412,20 +475,75 @@ export class PageTranslationSession {
       normalizeText(formatPlainText(translated, record.formats)) ===
       normalizeText(formatPlainText(record.originalText, record.formats));
 
-    const rendered = unchanged ? renderUnchanged(record.element) : this.renderRecord(record, translated);
-    if (!rendered) {
-      this.failRecord(record, {
-        code: 'response-invalid',
-        message: '译文无法渲染到当前页面。',
-        retryable: true,
-      });
+    record.translatedText = translated;
+    this.pendingRenders.set(record.id, { record, translatedText: translated, unchanged });
+    this.scheduleRenderFlush();
+  }
+
+  /**
+   * 翻译请求可能一次返回几十上百段。逐段同步插入会让主线程连续布局几百次，
+   * 用户滚动时就会明显卡住；这里分帧、限量写入，让浏览器有机会处理滚动和输入。
+   */
+  private scheduleRenderFlush(): void {
+    if (this.closed || this.renderTimer !== null) return;
+    const sinceScroll = performance.now() - this.lastScrollAt;
+    this.renderTimer = setTimeout(() => {
+      this.renderTimer = null;
+      // 用户刚开始滚动时，把这一批 DOM 写入再让出一帧，避免和滚动抢主线程。
+      if (performance.now() - this.lastScrollAt < 100) {
+        this.scheduleRenderFlush();
+        return;
+      }
+      this.flushRenderQueue();
+    }, sinceScroll < 120 ? 80 : 0);
+  }
+
+  private flushRenderQueue(): void {
+    if (this.closed) {
+      this.clearPendingRenders();
       return;
     }
 
-    record.translatedText = translated;
-    record.phase = 'translated';
-    record.rendered = rendered;
+    const pending = [...this.pendingRenders.values()];
+    const body = pending.filter((item) => item.record.kind === 'body').slice(0, BODY_RENDER_BATCH);
+    const interfaceItems = pending
+      .filter((item) => item.record.kind === 'interface')
+      .slice(0, INTERFACE_RENDER_BATCH);
+
+    for (const item of [...body, ...interfaceItems]) {
+      this.pendingRenders.delete(item.record.id);
+      if (this.registry.get(item.record.id) !== item.record) continue;
+      if (item.record.phase !== 'translating') continue;
+
+      const rendered = item.unchanged
+        ? renderUnchanged(item.record.element)
+        : this.renderRecord(item.record, item.translatedText);
+
+      if (!rendered) {
+        this.failRecord(item.record, {
+          code: 'response-invalid',
+          message: '译文无法渲染到当前页面。',
+          retryable: true,
+        });
+        continue;
+      }
+
+      item.record.translatedText = item.translatedText;
+      item.record.unchanged = item.unchanged;
+      item.record.phase = 'translated';
+      item.record.rendered = rendered;
+    }
+
     this.emit();
+    if (this.pendingRenders.size > 0) this.scheduleRenderFlush();
+  }
+
+  private clearPendingRenders(): void {
+    this.pendingRenders.clear();
+    if (this.renderTimer !== null) {
+      clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+    }
   }
 
   private renderRecord(record: UnitRecord, translatedText: string): RenderedTranslation | null {
@@ -447,9 +565,12 @@ export class PageTranslationSession {
   }
 
   private failRecord(record: UnitRecord, error: SanitizedTranslationError): void {
+    this.pendingRenders.delete(record.id);
     record.phase = 'failed';
     record.error = error;
     record.requestId = undefined;
+    record.translatedText = undefined;
+    record.unchanged = undefined;
 
     this.runOwnMutation(() => {
       record.rendered?.restore();
@@ -484,30 +605,119 @@ export class PageTranslationSession {
 
     this.observer = new MutationObserver((records) => this.onMutations(records));
     this.observer.observe(target, { childList: true, subtree: true, characterData: true });
+
+    // 滚动时不要抢主线程做整页重扫；记录时间，把重扫推迟到滚动告一段落。
+    this.doc.defaultView?.addEventListener('scroll', this.onScroll, { passive: true, capture: true });
   }
 
   private stopObserving(): void {
     this.observer?.disconnect();
     this.observer = null;
+    this.doc.defaultView?.removeEventListener('scroll', this.onScroll, { capture: true });
     if (this.reconcileTimer !== null) {
       clearTimeout(this.reconcileTimer);
       this.reconcileTimer = null;
     }
+    if (this.reconcileIdle !== null) {
+      this.doc.defaultView?.cancelIdleCallback(this.reconcileIdle);
+      this.reconcileIdle = null;
+    }
+    this.pendingRoots.clear();
+    this.touchedElements.clear();
+    this.fullRescan = false;
   }
 
   private onMutations(records: MutationRecord[]): void {
     if (this.closed || this.mutating > 0) return;
-    if (!records.some((record) => !isOwnMutation(record))) return;
-    this.scheduleReconcile();
+
+    let changed = false;
+    for (const record of records) {
+      // 站点把译文块删掉了：需要整页重扫，才能根据已有译文重新渲染。
+      if (record.type === 'childList' && Array.from(record.removedNodes).some(isOwnNode)) {
+        this.fullRescan = true;
+        changed = true;
+        continue;
+      }
+      if (isOwnMutation(record)) continue;
+      changed = true;
+
+      if (record.type === 'characterData') {
+        this.addMutationRoot(record.target);
+        continue;
+      }
+
+      this.addMutationRoot(record.target);
+      for (const added of Array.from(record.addedNodes)) this.addMutationRoot(added);
+    }
+
+    if (changed) this.scheduleReconcile();
+  }
+
+  private addMutationRoot(node: Node): void {
+    const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+    if (!element || !element.isConnected) return;
+
+    const tracked = this.trackedAncestor(element);
+    if (tracked) this.touchedElements.add(tracked);
+
+    const root = tracked ?? element;
+    if (root === this.doc.body || root === this.doc.documentElement) {
+      this.fullRescan = true;
+      return;
+    }
+    this.pendingRoots.add(root);
+    if (this.pendingRoots.size > 40) this.fullRescan = true;
+  }
+
+  private trackedAncestor(element: Element): Element | null {
+    for (let current: Element | null = element; current; current = current.parentElement) {
+      if (this.elementRecords.has(current)) return current;
+    }
+    return null;
   }
 
   private scheduleReconcile(): void {
-    if (this.reconcileTimer !== null) return;
+    if (this.reconcileTimer !== null || this.reconcileIdle !== null) return;
     this.reconcileTimer = setTimeout(() => {
       this.reconcileTimer = null;
-      this.reconcileScan();
-      this.emit();
+      this.runReconcileWhenIdle();
     }, this.source.mutationDebounceMs ?? DEFAULT_MUTATION_DEBOUNCE_MS);
+  }
+
+  private runReconcileWhenIdle(): void {
+    if (this.closed) return;
+
+    // 用户正在滚动时，宁可晚一点再扫，也不要在滚动帧里做整页 getComputedStyle。
+    if (performance.now() - this.lastScrollAt < 140) {
+      this.reconcileTimer = setTimeout(() => {
+        this.reconcileTimer = null;
+        this.runReconcileWhenIdle();
+      }, 120);
+      return;
+    }
+
+    const run = (): void => {
+      this.reconcileIdle = null;
+      if (this.closed) return;
+
+      const full = this.fullRescan;
+      const touched = new Set(this.touchedElements);
+      const roots = this.pendingRoots.size > 0 ? [...this.pendingRoots] : [...touched];
+      this.pendingRoots.clear();
+      this.touchedElements.clear();
+      this.fullRescan = false;
+
+      if (!full && roots.length === 0) return;
+      this.reconcileScan(full ? undefined : roots, touched);
+      this.emit();
+    };
+
+    const view = this.doc.defaultView;
+    if (view && typeof view.requestIdleCallback === 'function') {
+      this.reconcileIdle = view.requestIdleCallback(run, { timeout: 1000 });
+    } else {
+      run();
+    }
   }
 
   private emit(): void {
@@ -555,4 +765,8 @@ function isOwnMutation(record: MutationRecord): boolean {
   }
 
   return false;
+}
+
+function isOwnNode(node: Node): boolean {
+  return node.nodeType === Node.ELEMENT_NODE && (node as Element).hasAttribute(OWN_NODE_ATTRIBUTE);
 }
