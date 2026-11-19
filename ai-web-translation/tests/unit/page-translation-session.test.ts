@@ -386,6 +386,27 @@ describe('PageTranslationSession 译文排版', () => {
     expect(session.getState().progress.succeeded).toBe(2);
   });
 
+  it('模型原样返回后发生页面变动，重渲染也不会补出一份重复译文', async () => {
+    setPage('<main><p>.agents/skills</p></main>');
+    const manual = createManualEngine();
+    const session = createSession(manual.engine, { observeMutations: true });
+
+    await session.start();
+    const [request] = manual.requests;
+    if (!request) throw new Error('缺少翻译请求');
+    succeed(manual, 0, 0, request.units[0]?.text ?? '');
+    complete(manual, 0);
+    await waitFor(() => session.getState().status === 'completed');
+    expect(bodyTranslations()).toHaveLength(0);
+
+    // 站点插入无关节点触发整页重扫：原文未变的单元不应重新渲染成译文块。
+    document.querySelector('main')?.append(document.createElement('span'));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    expect(bodyTranslations()).toHaveLength(0);
+    expect(manual.requests).toHaveLength(1);
+  });
+
   it('标题译文沿用原文的字重，但字号相对化，不照抄绝对像素', async () => {
     setPage('<main><h2 style="font-size: 32px; font-weight: 700">Release notes</h2></main>');
     const engine = new FakeTranslationEngine();
