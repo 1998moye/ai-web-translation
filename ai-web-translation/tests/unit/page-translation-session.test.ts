@@ -484,6 +484,10 @@ describe('PageTranslationSession 译文排版', () => {
 
     expect(cellBlock.getAttribute('style')).toContain('font-size: clamp(0.75rem, 0.82em, 1rem)');
     expect(paragraphBlock.getAttribute('style')).toContain('font-size: clamp(0.82rem, 0.9em, 1.3rem)');
+    // 正文译文的左边线用来和上方原文成组；单元格里取消，避免和列分隔线混淆。
+    expect(paragraphBlock.getAttribute('style')).toContain('border-left: 2px solid');
+    expect(cellBlock.getAttribute('style')).toContain('border-left: 0');
+    expect(cellBlock.getAttribute('style')).toContain('padding: 0 0 0.15em 0');
     // flex 容器里不占满整行，中文会被挤成逐字竖排。
     expect(paragraphBlock.getAttribute('style')).toContain('flex-basis: 100%');
   });

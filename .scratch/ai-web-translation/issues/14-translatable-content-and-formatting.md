@@ -52,4 +52,5 @@
 - 布局安全：新增 `src/modules/content-scan/layout-safety.ts`，跳过 recharts/highcharts 等图表、flex/grid 容器与数据行、绝对定位浮层、固定高度且 `overflow:hidden` 的卡片；表格译文只放在单元格内部。
 - 数据行：块级 `div` 中数字多、词少且没有句子结尾的内容不再当正文，避免排行榜/价格表整行被拼成一条译文。
 - 译文样式：字号改为 `clamp()` 限制，增加 `max-width`、`overflow-wrap:anywhere`、`box-sizing:border-box`，标题或大字号单元格不再撑爆版面。
+- 视觉分组：正文译文加细左边线并缩进；根据原文 `margin-bottom` 动态增加译文下方间距，让译文与上方原文成组，避免读者把译文误认成下一条原文的译文。表格单元格里取消左边线，避免与列分隔线混淆。
 - 验收：新增 `tests/unit/style-cache.test.ts`、`tests/e2e/fixtures/layout.html`、`tests/e2e/layout.spec.ts`；单测 323 passed、fake e2e 31 passed / 1 skipped、生产 e2e 28 passed。3000 段压力页面实测 3081 个译文块约 6.2 秒完成，最长主线程任务 122ms，滚动帧 p95 18ms（本机 Chromium 无头环境，仅作回归参考）。

@@ -25,9 +25,10 @@ const BODY_BLOCK_STYLE = [
   'display: block',
   'box-sizing: border-box',
   'max-width: 100%',
-  'margin: 0.35em 0 0.15em',
-  'padding: 0',
-  'border: 0',
+  // 细左边线把译文和上方原文成组，避免读者把译文误认成下一段原文的译文。
+  'border-left: 2px solid rgba(42, 157, 143, 0.55)',
+  'margin: 0.25em 0 1em',
+  'padding: 0 0 0.25em 0.7em',
   'background: transparent',
   'white-space: normal',
   'overflow-wrap: anywhere',
@@ -40,9 +41,12 @@ const BODY_BLOCK_STYLE = [
 /** 表格里再插入一份同字号译文会把行高撑开、列宽挤窄，因此更小并收紧行距。 */
 const TABLE_BLOCK_STYLE = [
   BODY_BLOCK_STYLE,
+  // 单元格里的左边线容易和列分隔线混淆，只保留更小的字号与行距。
+  'border-left: 0',
+  'padding: 0 0 0.15em 0',
   'font-size: clamp(0.75rem, 0.82em, 1rem)',
   'line-height: 1.45',
-  'margin: 0.2em 0 0',
+  'margin: 0.2em 0 0.6em',
 ].join(';');
 
 const FAILURE_BLOCK_STYLE = [
@@ -152,6 +156,16 @@ function styleFor(source: Element, inTable: boolean, cache: StyleCache): string 
     for (const property of INHERITED_TYPOGRAPHY) {
       const value = computed.getPropertyValue(property);
       if (value) style += `;${property}: ${value}`;
+    }
+
+    // 原文下方的外边距通常比译文下边距大。若照抄，译文会离下一条原文更近；
+    // 这里根据原文 margin-bottom 把译文下方撑开一点，让译文和上方原文成组。
+    if (!inTable) {
+      const sourceStyle = cache.get(source);
+      const sourceMargin = Number.parseFloat(sourceStyle?.getPropertyValue('margin-bottom') ?? '');
+      if (Number.isFinite(sourceMargin)) {
+        style += `;margin-bottom: ${Math.max(8, sourceMargin + 6)}px`;
+      }
     }
   } catch {
     return base;
