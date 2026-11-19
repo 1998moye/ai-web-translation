@@ -113,7 +113,7 @@ function isEligibleElement(
  * 「只有一个按钮或链接的容器」经常被当成正文段落，于是按钮旁边又多出一份译文；
  * 这类容器没有自己的文字，应该交给界面文本就地翻译，而不是当正文重复翻译一遍。
  */
-function proseTextOutsideControls(element: Element): string {
+function proseTextOutsideControls(element: Element, visibility: StyleCache): string {
   let directText = '';
   for (const node of Array.from(element.childNodes)) {
     if (node.nodeType === Node.TEXT_NODE) directText += node.nodeValue ?? '';
@@ -132,7 +132,7 @@ function proseTextOutsideControls(element: Element): string {
 
     const child = node as Element;
     if (child !== element && child.matches(INTERFACE_SELECTOR)) return;
-    if (isSkippedElement(child)) return;
+    if (isSkippedElement(child, visibility)) return;
     for (const grandChild of Array.from(child.childNodes)) walk(grandChild);
   };
 
@@ -203,7 +203,7 @@ function collectBodyCandidates(
 
     const payload = buildInlinePayload(element, visibility);
     if (!payload) return;
-    if (!proseTextOutsideControls(element)) {
+    if (!proseTextOutsideControls(element, visibility)) {
       // 内容标题常常只有一个链接作为全部文字（如 Stack Overflow 问题标题）；
       // 它不是导航控件，应保留英文并在下方显示译文。
       const isContentHeading =
