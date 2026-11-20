@@ -177,13 +177,26 @@ describe('scanTranslatableTargets', () => {
     expect(scanTranslatableTargets(document)).toHaveLength(0);
   });
 
-  it('浏览器 checkVisibility 认为可见时，仍跳过 1px 裁剪的 sr-only 文本', () => {
+  it('1px 裁剪的 sr-only 文本不进入翻译范围', () => {
     setPage(
       '<div><span id="sr" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0)">reputation</span><span>59.3k</span></div>',
     );
-    const hidden = document.getElementById('sr');
-    if (!hidden) throw new Error('缺少隐藏标签');
-    Object.defineProperty(hidden, 'checkVisibility', { value: () => true });
+
+    expect(scanTranslatableTargets(document)).toHaveLength(0);
+  });
+
+  it('包在 display: contents 外壳里的正文照常翻译', () => {
+    // GitHub 的 ui-service 外壳用 display: contents 包住整片正文；
+    // 没有盒子的元素不能算「不可见」，否则整页正文都会被跳过。
+    setPage(
+      '<div style="display: contents"><main><p>Paragraph inside a display contents shell.</p></main></div>',
+    );
+
+    expect(scanTranslatableTargets(document).filter((target) => target.kind === 'body')).toHaveLength(1);
+  });
+
+  it('content-visibility: hidden 的容器里的正文不翻译', () => {
+    setPage('<div style="content-visibility: hidden"><p>Collapsed panel paragraph text.</p></div>');
 
     expect(scanTranslatableTargets(document)).toHaveLength(0);
   });
@@ -225,10 +238,9 @@ describe('scanTranslatableTargets', () => {
     ]);
   });
 
-  it('绝对定位或固定高度的卡片不当作正文，避免译文溢出覆盖', () => {
+  it('绝对定位的浮层不当作正文，避免译文溢出覆盖', () => {
     const targets = scan(`
       <div style="position: absolute; right: 0; top: 0">Floating chart label text.</div>
-      <div style="height: 26px; overflow: hidden"><p>Clipped card paragraph text.</p></div>
       <p>Normal paragraph text outside the cards.</p>
     `);
 
@@ -236,10 +248,81 @@ describe('scanTranslatableTargets', () => {
     expect(targets[0]?.text).toBe('Normal paragraph text outside the cards.');
   });
 
+  it('真正裁掉内容的固定高度卡片不当作正文', () => {
+    setPage(
+      '<div id="card" style="height: 26px; overflow: hidden"><p>Clipped card paragraph text.</p></div>' +
+        '<p>Normal paragraph text outside the cards.</p>',
+    );
+    // jsdom 没有布局，手工模拟「滚动尺寸大于可视尺寸」的裁剪容器。
+    const card = document.getElementById('card');
+    if (!card) throw new Error('缺少卡片');
+    Object.defineProperty(card, 'scrollHeight', { configurable: true, value: 120 });
+    Object.defineProperty(card, 'clientHeight', { configurable: true, value: 26 });
+
+    const targets = scanTranslatableTargets(document);
+    expect(targets.filter((target) => target.kind === 'body').map((target) => target.text)).toEqual([
+      'Normal paragraph text outside the cards.',
+    ]);
+  });
+
+  it('圆角卡片这类 overflow 隐藏但没有裁掉内容的容器仍按正文翻译', () => {
+    setPage('<div style="overflow: hidden; border-radius: 6px"><p>Card paragraph inside a rounded box.</p></div>');
+
+    const targets = scanTranslatableTargets(document);
+    expect(targets.filter((target) => target.kind === 'body').map((target) => target.text)).toEqual([
+      'Card paragraph inside a rounded box.',
+    ]);
+  });
+
   it('普通段落放在 grid 布局里仍可翻译', () => {
     const targets = scan('<div style="display: grid"><p>Grid paragraph text is still prose.</p></div>');
 
     expect(targets.filter((target) => target.kind === 'body')).toHaveLength(1);
     expect(targets[0]?.text).toBe('Grid paragraph text is still prose.');
+  });
+
+  it('报告此刻不可见的正文，供可见性变化后重查', () => {
+    setPage(
+      '<main><p>The visible paragraph of the page.</p>' +
+        '<div style="display: none"><p>The paragraph inside a collapsed panel.</p></div></main>',
+    );
+    const deferred: HTMLElement[] = [];
+
+    const targets = scanTranslatableTargets(document, {
+      onVisibilityDeferred: (element) => deferred.push(element),
+    });
+
+    expect(targets.map((target) => target.text)).toEqual(['The visible paragraph of the page.']);
+    const hidden = [...document.querySelectorAll('p')].at(-1);
+    expect(deferred).toContain(hidden);
+  });
+
+  it('代码、图表等被排除的内容不进入等待重查列表', () => {
+    setPage(
+      '<main><div class="recharts-wrapper" style="display: none"><p>Chart label text.</p></div>' +
+        '<pre style="display: none"><code>const hidden = 1;</code></pre>' +
+        '<p>The visible paragraph of the page.</p></main>',
+    );
+    const deferred: HTMLElement[] = [];
+
+    scanTranslatableTargets(document, { onVisibilityDeferred: (element) => deferred.push(element) });
+
+    expect(deferred.map((element) => element.tagName)).not.toContain('CODE');
+    expect(deferred.map((element) => element.tagName)).not.toContain('PRE');
+    expect(deferred.some((element) => element.closest('.recharts-wrapper') !== null)).toBe(false);
+  });
+
+  it('隐藏的界面文本同样进入等待列表，可见后重新建立单元', () => {
+    setPage('<nav><a href="/docs" style="display: none">Documentation</a></nav><p>Body text here.</p>');
+    const deferred: HTMLElement[] = [];
+
+    scanTranslatableTargets(document, { onVisibilityDeferred: (element) => deferred.push(element) });
+
+    const link = document.querySelector('a');
+    if (!link) throw new Error('缺少链接');
+    expect(deferred).toContain(link);
+
+    link.style.display = '';
+    expect(scanTranslatableTargets(document).filter((target) => target.kind === 'interface')).toHaveLength(1);
   });
 });

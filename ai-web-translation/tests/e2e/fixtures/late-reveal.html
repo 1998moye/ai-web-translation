@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Late revealed content</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 40px auto;
+        max-width: 720px;
+      }
+      /* 淡入动画：只改 opacity，不产生任何 DOM 变动。 */
+      #fading {
+        opacity: 0;
+        transition: opacity 120ms linear;
+      }
+      #revealed {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p id="visible">The paragraph that is visible from the first paint of the page.</p>
+      <div id="fading">
+        <p id="faded">The paragraph inside a container that fades in after the translation started.</p>
+      </div>
+      <div id="revealed">
+        <p id="shown">The paragraph inside a panel the site expands with a class change.</p>
+      </div>
+    </main>
+    <script>
+      // 站点只改样式展开内容：MutationObserver 看不到这些变化。
+      setTimeout(() => {
+        document.getElementById('fading').style.opacity = '1';
+      }, 900);
+
+      setTimeout(() => {
+        document.getElementById('revealed').style.display = 'block';
+      }, 1600);
+    </script>
+  </body>
+</html>

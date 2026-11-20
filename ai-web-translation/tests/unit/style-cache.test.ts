@@ -33,4 +33,22 @@ describe('StyleCache', () => {
 
     span.mockRestore();
   });
+
+  it('display: contents 的外壳不算隐藏，后代照常可翻译', () => {
+    setPage('<div style="display: contents"><span id="child">Visible text</span></div>');
+    const child = document.getElementById('child');
+    if (!child) throw new Error('缺少子节点');
+
+    const cache = new StyleCache(document);
+    expect(cache.isHidden(child)).toBe(false);
+  });
+
+  it('content-visibility: hidden 的容器把后代算作隐藏', () => {
+    setPage('<div style="content-visibility: hidden"><span id="child">Collapsed text</span></div>');
+    const child = document.getElementById('child');
+    if (!child) throw new Error('缺少子节点');
+
+    const cache = new StyleCache(document);
+    expect(cache.isHidden(child)).toBe(true);
+  });
 });

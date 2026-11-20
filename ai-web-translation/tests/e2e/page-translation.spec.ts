@@ -99,6 +99,29 @@ test('动态新增内容与原文变化自动处理', async ({ page }) => {
   ).toHaveCount(0);
 });
 
+test('站点只用样式展开的正文，在变得可见后也会被翻译', async ({ page }) => {
+  await page.goto('/late-reveal.html');
+  await page.locator('.aiwt-fab-main').click();
+
+  // 首屏只有一段可见：另外两段在淡入与折叠面板里，扫描时读不到文字。
+  await expect(page.locator('[data-aiwt="body-translation"]')).toHaveCount(1);
+
+  // 站点之后只改 CSS：淡入动画结束后译文出现，不需要重新点翻译。
+  await expect(page.locator('#faded + [data-aiwt="body-translation"]')).toContainText(
+    '【模拟译文】The paragraph inside a container that fades in',
+    { timeout: 25_000 },
+  );
+  await expect(page.locator('#shown + [data-aiwt="body-translation"]')).toContainText(
+    '【模拟译文】The paragraph inside a panel',
+    { timeout: 25_000 },
+  );
+
+  // 原文与译文并存，恢复原文后一起消失。
+  await expect(page.locator('#faded')).toContainText('fades in after the translation started');
+  await page.locator('.aiwt-fab-main').click();
+  await expect(page.locator('[data-aiwt="body-translation"]')).toHaveCount(0);
+});
+
 test('按网站自动翻译只对英文页面生效，恢复后不重复触发', async ({ page }) => {
   const translations = page.locator('[data-aiwt="body-translation"]');
 

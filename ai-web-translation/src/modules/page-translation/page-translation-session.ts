@@ -42,6 +42,8 @@ export interface PageTranslationSessionOptions {
   batchCharLimit?: number;
   /** 动态内容重新扫描的防抖时间。 */
   mutationDebounceMs?: number;
+  /** 等待可见的候选元素（折叠面板、淡入动画里的正文）的兜底重查间隔。 */
+  revealRecheckMs?: number;
   /** 测试可在不启用 MutationObserver 的情况下手动触发扫描。 */
   observeMutations?: boolean;
 }
@@ -74,6 +76,19 @@ const DEFAULT_MUTATION_DEBOUNCE_MS = 400;
 /** 每帧最多写多少条译文：避免一次把几百个节点插进页面造成长任务。 */
 const BODY_RENDER_BATCH = 8;
 const INTERFACE_RENDER_BATCH = 32;
+/** 等待可见的候选元素的重查间隔：站点展开折叠面板或淡入正文不会产生 DOM 变动。 */
+const REVEAL_RECHECK_MS = 1200;
+/** 兜底重查的次数上限：一直不显示的元素不能被无限重查。 */
+const REVEAL_RECHECK_PASSES = 6;
+/** 记录的等待可见元素上限，避免超长页面把内存与重查成本拉高。 */
+const REVEAL_ELEMENT_LIMIT = 400;
+/**
+ * 首屏扫描之后的补扫时机。
+ *
+ * 单页应用的正文常在首屏扫描之后才渲染出来，而且不一定伴随可监听的 DOM 变动：
+ * 例如框架先挂载一个隐藏容器，随后只改样式。补扫几次的成本远低于漏翻整页正文。
+ */
+const SETTLE_RESCAN_DELAYS_MS = [1200, 4000];
 
 /**
  * 页面翻译会话：对调用方隐藏扫描、语言判断、翻译单元状态、动态监听、
@@ -105,9 +120,32 @@ export class PageTranslationSession {
   private lastScrollAt = 0;
   private readonly onScroll = (): void => {
     this.lastScrollAt = performance.now();
+    // 站点常用滚动懒加载展开正文：滚动结束后重新检查等待可见的候选。
+    if (this.revealCandidates.size > 0) this.scheduleRevealRecheck(this.revealRecheckMs());
+  };
+  /** 过渡或动画结束意味着淡入完成，此刻原来的隐藏正文多半已经可见。 */
+  private readonly onReveal = (): void => {
+    if (this.closed || this.revealCandidates.size === 0) return;
+    this.revealPasses = 0;
+    this.scheduleRevealRecheck(0);
+  };
+  /** 首屏扫描早于站点渲染完成时，文档加载完成后补一次整页重扫。 */
+  private readonly onLoad = (): void => {
+    if (this.closed || !this.scannedWhileLoading) return;
+    this.scannedWhileLoading = false;
+    this.fullRescan = true;
+    this.scheduleReconcile();
   };
   private pendingRenders = new Map<TranslationUnitId, PendingRender>();
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 本次扫描时不可见、需要等可见性变化后重查的候选元素。 */
+  private readonly revealCandidates = new Set<HTMLElement>();
+  private revealTimer: ReturnType<typeof setTimeout> | null = null;
+  private revealRecheckDueAt = 0;
+  private revealPasses = 0;
+  private inRevealPass = false;
+  private scannedWhileLoading = false;
+  private readonly settleTimers: ReturnType<typeof setTimeout>[] = [];
 
   constructor(options: PageTranslationSessionOptions) {
     this.source = options;
@@ -144,8 +182,12 @@ export class PageTranslationSession {
 
     // 配置快照：本次会话后续批次与新增内容都使用这个配置 ID。
     this.profileId = profile.id;
+    // 页面还在加载时扫描到的只是首屏快照，加载完成后需要补扫一次。
+    this.scannedWhileLoading = this.doc.readyState !== 'complete';
     this.reconcileScan();
     this.observe();
+    this.listenForReveals();
+    this.scheduleSettleRescans();
     this.emit();
     return this.getState();
   }
@@ -274,10 +316,18 @@ export class PageTranslationSession {
         .filter((record) => record.kind === 'body')
         .map((record) => record.element),
     );
-    const targets = scanTranslatableTargets(
-      this.doc,
-      fullScan ? { knownBodyElements } : { roots, knownBodyElements },
-    );
+    let targets: TranslatableTarget[];
+    try {
+      targets = scanTranslatableTargets(this.doc, {
+        ...(fullScan ? {} : { roots }),
+        knownBodyElements,
+        onVisibilityDeferred: (element) => this.deferRevealCandidate(element),
+      });
+    } catch {
+      // 站点 DOM 千奇百怪（超深嵌套、异常的样式读取等）。一次扫描失败不能让会话
+      // 永远停在旧状态：保留已有译文，等下一次扫描触发再试。
+      return;
+    }
     const seen = new Set<Element>();
     const fresh: UnitRecord[] = [];
 
@@ -329,6 +379,87 @@ export class PageTranslationSession {
     }
 
     this.dispatch(fresh);
+    if (!this.inRevealPass && this.revealCandidates.size > 0) {
+      // 站点新插入的内容同样可能要等可见性变化，重扫之后重新开始计数。
+      this.revealPasses = 0;
+      this.scheduleRevealRecheck(this.revealRecheckMs());
+    }
+  }
+
+  /**
+   * 记住此刻不可见的候选元素。
+   *
+   * 折叠面板、淡入动画和懒加载容器里的正文在扫描时读不到可见文字；
+   * 站点之后只改 CSS 就把它显示出来，不会产生 DOM 变动，
+   * 因此必须自己重查一遍，否则这些正文会一直保持英文。
+   */
+  private deferRevealCandidate(element: HTMLElement): void {
+    if (this.closed || this.elementRecords.has(element)) return;
+    if (this.revealCandidates.size >= REVEAL_ELEMENT_LIMIT) return;
+    this.revealCandidates.add(element);
+  }
+
+  private scheduleRevealRecheck(delayMs: number): void {
+    if (this.closed || this.revealCandidates.size === 0) return;
+
+    // 已经排好一次更早的重查就不用重排；动画结束、展开这类高信号事件可以把兜底重查提前。
+    const dueAt = performance.now() + delayMs;
+    if (this.revealTimer !== null) {
+      if (this.revealRecheckDueAt <= dueAt) return;
+      clearTimeout(this.revealTimer);
+      this.revealTimer = null;
+    }
+
+    this.revealRecheckDueAt = dueAt;
+    this.revealTimer = setTimeout(() => {
+      this.revealTimer = null;
+      this.runRevealRecheck();
+    }, delayMs);
+  }
+
+  private runRevealRecheck(): void {
+    if (this.closed || this.revealCandidates.size === 0) return;
+
+    // 用户正在滚动时不在滚动帧里做样式计算，等滚动告一段落再查。
+    if (performance.now() - this.lastScrollAt < 140) {
+      this.scheduleRevealRecheck(this.revealRecheckMs());
+      return;
+    }
+
+    const pending = [...this.revealCandidates].filter((element) => element.isConnected);
+    this.revealCandidates.clear();
+    if (pending.length === 0) return;
+
+    // 只重扫这些元素本身：已经可见的会建立翻译单元，仍然不可见的会重新进入等待集合。
+    this.inRevealPass = true;
+    try {
+      this.reconcileScan(pending);
+    } finally {
+      this.inRevealPass = false;
+    }
+    this.emit();
+
+    if (this.closed || this.revealCandidates.size === 0) {
+      this.revealPasses = 0;
+      return;
+    }
+    this.revealPasses += 1;
+    if (this.revealPasses < REVEAL_RECHECK_PASSES) this.scheduleRevealRecheck(this.revealRecheckMs());
+  }
+
+  private clearRevealCandidates(): void {
+    this.revealCandidates.clear();
+    this.revealPasses = 0;
+    this.inRevealPass = false;
+    this.revealRecheckDueAt = 0;
+    if (this.revealTimer !== null) {
+      clearTimeout(this.revealTimer);
+      this.revealTimer = null;
+    }
+  }
+
+  private revealRecheckMs(): number {
+    return this.source.revealRecheckMs ?? REVEAL_RECHECK_MS;
   }
 
   private createRecord(target: TranslatableTarget): UnitRecord | null {
@@ -610,10 +741,40 @@ export class PageTranslationSession {
     this.doc.defaultView?.addEventListener('scroll', this.onScroll, { passive: true, capture: true });
   }
 
+  /**
+   * 监听不会产生可靠 DOM 变动的「内容出现」信号：淡入动画结束、折叠面板展开、文档加载完成。
+   * 这些变化都只改 CSS 或加载时序，MutationObserver 看不到。
+   */
+  private listenForReveals(): void {
+    // 淡入动画和站点展开折叠面板只改 CSS，不会有 DOM 变动可监听。
+    this.doc.addEventListener('transitionend', this.onReveal, true);
+    this.doc.addEventListener('animationend', this.onReveal, true);
+    // 页面加载完成后补扫一次首屏扫描可能错过的正文。
+    this.doc.defaultView?.addEventListener('load', this.onLoad);
+  }
+
+  private scheduleSettleRescans(): void {
+    for (const delay of SETTLE_RESCAN_DELAYS_MS) {
+      this.settleTimers.push(
+        setTimeout(() => {
+          if (this.closed) return;
+          this.fullRescan = true;
+          this.scheduleReconcile();
+        }, delay),
+      );
+    }
+  }
+
   private stopObserving(): void {
     this.observer?.disconnect();
     this.observer = null;
     this.doc.defaultView?.removeEventListener('scroll', this.onScroll, { capture: true });
+    this.doc.defaultView?.removeEventListener('load', this.onLoad);
+    this.doc.removeEventListener('transitionend', this.onReveal, true);
+    this.doc.removeEventListener('animationend', this.onReveal, true);
+    this.clearRevealCandidates();
+    for (const timer of this.settleTimers) clearTimeout(timer);
+    this.settleTimers.length = 0;
     if (this.reconcileTimer !== null) {
       clearTimeout(this.reconcileTimer);
       this.reconcileTimer = null;
@@ -628,17 +789,25 @@ export class PageTranslationSession {
   }
 
   private onMutations(records: MutationRecord[]): void {
-    if (this.closed || this.mutating > 0) return;
+    if (this.closed) return;
 
     let changed = false;
     for (const record of records) {
+      if (isOwnMutation(record)) continue;
+
       // 站点把译文块删掉了：需要整页重扫，才能根据已有译文重新渲染。
       if (record.type === 'childList' && Array.from(record.removedNodes).some(isOwnNode)) {
+        // 我们正在写 DOM 时，这类移除多半是自己的恢复动作。
+        if (this.mutating > 0) continue;
         this.fullRescan = true;
         changed = true;
         continue;
       }
-      if (isOwnMutation(record)) continue;
+
+      // 我们刚改过的元素上的变动是自己的动作；同批次的其它变动仍来自站点，
+      // 不能整批丢掉，否则站点在这期间新增的正文永远不会被翻译。
+      if (this.mutating > 0 && this.isOwnWriteTarget(record)) continue;
+
       changed = true;
 
       if (record.type === 'characterData') {
@@ -650,7 +819,16 @@ export class PageTranslationSession {
       for (const added of Array.from(record.addedNodes)) this.addMutationRoot(added);
     }
 
-    if (changed) this.scheduleReconcile();
+    if (changed) {
+      this.revealPasses = 0;
+      this.scheduleReconcile();
+    }
+  }
+
+  private isOwnWriteTarget(record: MutationRecord): boolean {
+    const target = record.target;
+    const element = target.nodeType === Node.ELEMENT_NODE ? (target as Element) : target.parentElement;
+    return element !== null && this.trackedAncestor(element) !== null;
   }
 
   private addMutationRoot(node: Node): void {

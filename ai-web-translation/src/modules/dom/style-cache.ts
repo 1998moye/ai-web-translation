@@ -52,19 +52,25 @@ export class StyleCache {
     const parent = element.parentElement;
     if (parent && this.isHidden(parent)) return true;
 
-    const checkVisibility = (element as Element & {
-      checkVisibility?: (options?: { checkVisibilityCSS?: boolean }) => boolean;
-    }).checkVisibility;
-    if (typeof checkVisibility === 'function') {
-      try {
-        if (!checkVisibility.call(element, { checkVisibilityCSS: true })) return true;
-      } catch {
-        // 回退到 computed style 检查。
+    const style = this.get(element);
+    if (!style) return false;
+
+    // display: contents 的元素没有自己的盒子，浏览器会一律判成不可见，
+    // 但它包住的正文照常绘制。GitHub 仓库页的外壳就是这样包住整片正文的，
+    // 一旦据此跳过，整页只剩下外壳以外的几条导航链接能翻。
+    if (style.display !== 'contents') {
+      const checkVisibility = (element as Element & {
+        checkVisibility?: (options?: { checkVisibilityCSS?: boolean }) => boolean;
+      }).checkVisibility;
+      if (typeof checkVisibility === 'function') {
+        try {
+          if (!checkVisibility.call(element, { checkVisibilityCSS: true })) return true;
+        } catch {
+          // 回退到 computed style 检查。
+        }
       }
     }
 
-    const style = this.get(element);
-    if (!style) return false;
     if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
       return true;
     }
@@ -79,6 +85,9 @@ export class StyleCache {
  * 文字里，让一个纯数字徽章变成翻译单元，于是在旁边多出一份译文。
  */
 export function isVisuallyHidden(computed: CSSStyleDeclaration): boolean {
+  // content-visibility: hidden 的子树不会被绘制，等价于隐藏（折叠 <details> 也走这条）。
+  if (computed.getPropertyValue('content-visibility') === 'hidden') return true;
+
   const opacity = Number.parseFloat(computed.getPropertyValue('opacity'));
   if (Number.isFinite(opacity) && opacity === 0) return true;
 

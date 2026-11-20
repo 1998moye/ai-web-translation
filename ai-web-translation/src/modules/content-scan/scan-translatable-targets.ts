@@ -92,19 +92,29 @@ function hasBlockishChild(element: Element, visibility: StyleCache): boolean {
   return false;
 }
 
-function isEligibleElement(
+type Eligibility = 'ok' | 'hidden' | 'excluded';
+
+/**
+ * 候选元素的资格判断。
+ *
+ * 'hidden' 与 'excluded' 的区别很重要：代码、图表、导航里的文字是「不该翻译」，
+ * 而此刻不可见的文字只是「现在还看不见」。折叠面板、淡入动画、懒加载容器里的正文
+ * 常常在页面加载后才由站点用 CSS 展开，这种变化不会产生 DOM 变动，
+ * 因此调用方需要把这类候选记下来，等可见性变化后再重新检查。
+ */
+function classifyEligibility(
   element: HTMLElement,
   options: { allowInNavigation: boolean },
   visibility: StyleCache,
-): boolean {
-  if (isOwnNode(element)) return false;
-  if (isInsideCode(element)) return false;
-  if (isInsideSkippedContainer(element)) return false;
-  if (isInsideEditableRegion(element)) return false;
-  if (isHiddenElement(element, visibility)) return false;
-  if (isChartRegion(element)) return false;
-  if (!options.allowInNavigation && element.closest(BODY_EXCLUDED_ANCESTOR) !== null) return false;
-  return true;
+): Eligibility {
+  if (isOwnNode(element)) return 'excluded';
+  if (isInsideCode(element)) return 'excluded';
+  if (isInsideSkippedContainer(element)) return 'excluded';
+  if (isInsideEditableRegion(element)) return 'excluded';
+  if (isChartRegion(element)) return 'excluded';
+  if (!options.allowInNavigation && element.closest(BODY_EXCLUDED_ANCESTOR) !== null) return 'excluded';
+  if (isHiddenElement(element, visibility)) return 'hidden';
+  return 'ok';
 }
 
 /**
@@ -140,11 +150,6 @@ function proseTextOutsideControls(element: Element, visibility: StyleCache): str
   return normalizeText(text);
 }
 
-function eligiblePayload(element: HTMLElement, allowInNavigation: boolean, visibility: StyleCache): InlinePayload | null {
-  if (!isEligibleElement(element, { allowInNavigation }, visibility)) return null;
-  return buildInlinePayload(element, visibility);
-}
-
 /**
  * 仓库元数据这类“多链接/短标签拼起来的一行”不是正文。
  * 在它下面插入整块译文会把下一行挤开，应该交给行内界面文本处理，或保持原样。
@@ -176,10 +181,17 @@ function looksLikeDataRow(element: HTMLElement, text = normalizeText(element.tex
   return digits >= 3 && words > 0 && words <= 16 && !sentenceEnd;
 }
 
+/**
+ * 记录「此刻不可见」的候选元素，供调用方在可见性变化后重查。
+ * 其它原因（代码、图表、表单、插件自身节点）被排除的元素不记录：它们不会因为变可见而可翻译。
+ */
+export type VisibilityDeferredHandler = (element: HTMLElement) => void;
+
 function collectBodyCandidates(
   roots: readonly Element[],
   visibility: StyleCache,
   knownBodyElements: ReadonlySet<Element>,
+  onDeferred?: VisibilityDeferredHandler,
 ): Candidate[] {
   const candidates: Candidate[] = [];
   const seen = new Set<Element>();
@@ -188,7 +200,12 @@ function collectBodyCandidates(
     if (seen.has(element)) return;
     seen.add(element);
 
-    if (!isEligibleElement(element, { allowInNavigation: false }, visibility)) return;
+    const eligibility = classifyEligibility(element, { allowInNavigation: false }, visibility);
+    if (eligibility === 'hidden') {
+      onDeferred?.(element);
+      return;
+    }
+    if (eligibility !== 'ok') return;
     // 先做便宜的布局判断，避免为图表、flex 行和固定高度卡片构建整段 payload。
     if (!isBodyTargetLayoutSafe(element, visibility)) return;
 
@@ -265,6 +282,7 @@ function collectInterfaceCandidates(
   roots: readonly Element[],
   bodyElements: ReadonlySet<Element>,
   visibility: StyleCache,
+  onDeferred?: VisibilityDeferredHandler,
 ): Candidate[] {
   const candidates: Candidate[] = [];
   const seen = new Set<Element>();
@@ -279,7 +297,14 @@ function collectInterfaceCandidates(
     if (element.parentElement?.closest(INTERFACE_SELECTOR)) return;
     if (hasBlockishChild(element, visibility)) return;
 
-    const payload = eligiblePayload(element, true, visibility);
+    const eligibility = classifyEligibility(element, { allowInNavigation: true }, visibility);
+    if (eligibility === 'hidden') {
+      onDeferred?.(element);
+      return;
+    }
+    if (eligibility !== 'ok') return;
+
+    const payload = buildInlinePayload(element, visibility);
     if (!payload) return;
 
     const words = payload.text.match(/[A-Za-z][A-Za-z'’-]*/g)?.length ?? 0;
@@ -308,6 +333,11 @@ export interface ScanTranslatableOptions {
   roots?: readonly Element[];
   /** 会话已建立的正文单元，避免重扫时在它们内部创建嵌套单元。 */
   knownBodyElements?: ReadonlySet<Element>;
+  /**
+   * 本次扫描时不可见、但之后可能因站点改样式而可见的候选元素。
+   * 站点展开折叠面板或淡入正文不会产生 DOM 变动，调用方需要据此重新检查。
+   */
+  onVisibilityDeferred?: VisibilityDeferredHandler;
 }
 
 export function scanTranslatableTargets(
@@ -320,10 +350,11 @@ export function scanTranslatableTargets(
   const visibility = new StyleCache(doc);
   const roots = options.roots && options.roots.length > 0 ? options.roots : [bodyRoot];
   const knownBodyElements = options.knownBodyElements ?? new Set<Element>();
-  const body = collectBodyCandidates(roots, visibility, knownBodyElements);
+  const onDeferred = options.onVisibilityDeferred;
+  const body = collectBodyCandidates(roots, visibility, knownBodyElements, onDeferred);
   const bodyElements = new Set(body.map((candidate) => candidate.element));
   const allBodyElements = new Set([...knownBodyElements, ...bodyElements]);
-  const interfaceCandidates = collectInterfaceCandidates(roots, allBodyElements, visibility);
+  const interfaceCandidates = collectInterfaceCandidates(roots, allBodyElements, visibility, onDeferred);
 
   return [...body, ...interfaceCandidates].map(({ element, payload }) => ({
     element,

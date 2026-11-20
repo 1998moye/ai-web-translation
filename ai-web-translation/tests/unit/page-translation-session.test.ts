@@ -671,6 +671,87 @@ describe('PageTranslationSession 失败、取消与恢复', () => {
   });
 });
 
+describe('PageTranslationSession 等待可见的正文', () => {
+  it('扫描时隐藏、之后用 CSS 显示出来的正文会被翻译', async () => {
+    setPage(
+      '<main><p>The visible paragraph of the page.</p>' +
+        '<div id="panel" style="display: none"><p>The paragraph inside a collapsed panel.</p></div></main>',
+    );
+    const engine = new FakeTranslationEngine();
+    const session = createSession(engine, { revealRecheckMs: 5 });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const submitted = engine.requests.flatMap((request) => request.units.map((unit) => unit.text));
+    expect(submitted).toEqual(['The visible paragraph of the page.']);
+
+    // 站点只改 CSS 展开面板：没有任何 DOM 变动可监听。
+    const panel = document.getElementById('panel');
+    if (!panel) throw new Error('缺少面板');
+    panel.style.display = 'block';
+
+    await waitFor(() => bodyTranslations().includes('【模拟译文】The paragraph inside a collapsed panel.'));
+    expect(session.getState().progress.total).toBe(2);
+  });
+
+  it('淡入动画结束时立即重查，不必等待兜底定时器', async () => {
+    setPage(
+      '<main><p>The visible paragraph of the page.</p>' +
+        '<div id="fade" style="opacity: 0"><p>The paragraph inside a container that fades in.</p></div></main>',
+    );
+    const engine = new FakeTranslationEngine();
+    // 兜底重查间隔设得足够长，验证动画事件本身就够用。
+    const session = createSession(engine, { revealRecheckMs: 60_000 });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const fade = document.getElementById('fade');
+    if (!fade) throw new Error('缺少容器');
+    fade.style.opacity = '1';
+    document.dispatchEvent(new Event('transitionend'));
+
+    await waitFor(() => bodyTranslations().includes('【模拟译文】The paragraph inside a container that fades in.'));
+  });
+
+  it('首屏扫描早于正文渲染时，文档加载完成后补扫一次', async () => {
+    setPage('<main><p>The first paragraph of the page.</p></main>');
+    Object.defineProperty(document, 'readyState', { configurable: true, value: 'loading' });
+    const engine = new FakeTranslationEngine();
+    // 关闭动态监听：只有加载完成后的补扫能建立第二个单元。
+    const session = createSession(engine, { observeMutations: false });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const paragraph = document.createElement('p');
+    paragraph.textContent = 'A paragraph the site rendered while the page was still loading.';
+    document.querySelector('main')?.append(paragraph);
+
+    Object.defineProperty(document, 'readyState', { configurable: true, value: 'complete' });
+    window.dispatchEvent(new Event('load'));
+
+    await waitFor(() => bodyTranslations().length === 2);
+    expect(session.getState().progress.total).toBe(2);
+  });
+  it('首屏扫描之后才渲染出来的正文，靠补扫接住', async () => {
+    setPage('<main><p>The first paragraph of the page.</p></main>');
+    // 关闭动态监听：只靠首屏之后的补扫，模拟站点在扫描后才渲染正文且没有可监听变动。
+    const session = createSession(new FakeTranslationEngine(), { observeMutations: false });
+
+    await session.start();
+    await waitFor(() => session.getState().status === 'completed');
+
+    const paragraph = document.createElement('p');
+    paragraph.textContent = 'A paragraph the site rendered after the first scan.';
+    document.querySelector('main')?.append(paragraph);
+
+    await waitFor(() => bodyTranslations().length === 2, '补扫没有接住新渲染的正文', 6000);
+    expect(session.getState().progress.total).toBe(2);
+  });
+});
+
 describe('PageTranslationSession 单元 ID 校验', () => {
   it('缺失结果的单元不会被猜测性渲染', async () => {
     setPage('<main><p>The only paragraph in this page.</p></main>');
