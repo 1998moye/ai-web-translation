@@ -34,6 +34,9 @@ export default defineConfig({
   vite: () => ({
     define: {
       __AIWT_FAKE_ENGINE__: JSON.stringify(useFakeEngine),
+      // 构建时间戳：页面上读 data-aiwt-build 就能确认跑的是哪一次构建，
+      // 免得“扩展到底重新加载了没有”这种问题反复消耗调试时间。
+      __AIWT_BUILD__: JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ')),
     },
   }),
 });

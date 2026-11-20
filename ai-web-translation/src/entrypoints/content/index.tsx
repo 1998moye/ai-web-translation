@@ -36,6 +36,8 @@ export default defineContentScript({
 
     // 标记宿主节点，页面扫描与动态监听会忽略插件自身 UI。
     ui.shadowHost.setAttribute('data-aiwt', 'ui');
+    // 构建时间戳：排查「扩展到底重新加载了没有」时，页面上直接能读到。
+    ui.shadowHost.setAttribute('data-aiwt-build', __AIWT_BUILD__);
     ui.mount();
 
     await assembly.controller.mount();
